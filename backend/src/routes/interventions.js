@@ -265,7 +265,7 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
         data: {
           clientId: updated.clientId,
           url: reportPdfUrl,
-          nome: `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} - ${full.tipoIntervento?.nome || 'Intervento'}`,
+          nome: `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} ${dataEsecuzione.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - ${full.tipoIntervento?.nome || 'Intervento'}`,
           tipo: 'report',
           dataDocumento: dataEsecuzione
         }

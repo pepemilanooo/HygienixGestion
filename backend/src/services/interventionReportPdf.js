@@ -2,13 +2,23 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
+const A4 = { width: 595.28, height: 841.89 };
+const MARGIN = 40;
+const LINE_H = 14;
+
+function formatDateTime(d) {
+  if (!d) return '-';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('it-IT') + ' ' + dt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+
 /**
- * Genera il PDF del report intervento (dati Prisma con client, location, tecnico, tipoIntervento, prodotti).
- * Salva il file e restituisce l'URL relativo (es. /uploads/reports/xxx.pdf).
+ * Genera il report dell'intervento in un unico foglio A4 con tutti i dettagli.
+ * Include: data/ora inizio, data/ora fine, cliente, sede, tecnico, tipo, risultato, prodotti, note tecnico.
  */
 function generateInterventionReportPdf(intervention, outputFilePath) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ size: 'A4', margin: MARGIN });
     const stream = fs.createWriteStream(outputFilePath);
     doc.pipe(stream);
 
@@ -17,71 +27,98 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
     const tecnico = intervention.tecnico || {};
     const tipoIntervento = intervention.tipoIntervento || {};
     const prodotti = intervention.prodotti || [];
-    const dataEsec = intervention.dataEsecuzione || intervention.dataProgrammata;
 
-    // Header
-    doc.fontSize(24).text('HYGIENIX', 50, 50);
-    doc.fontSize(14).text('ECOLOGIA AMBIENTE', 50, 78);
-    doc.fontSize(16).text('Report intervento', 50, 100);
-    doc.moveDown();
+    const dataInizio = intervention.checkInTime || intervention.dataProgrammata;
+    const dataFine = intervention.checkOutTime || intervention.dataEsecuzione || intervention.dataProgrammata;
 
-    // Intervento
-    doc.fontSize(12).text(`Intervento #${(intervention.id || '').substring(0, 8)}`, 50, 140);
-    doc.text(`Data esecuzione: ${dataEsec ? new Date(dataEsec).toLocaleDateString('it-IT') : '-'}`, 50, 158);
-    doc.text(`Tipo: ${tipoIntervento.nome || 'N/A'}`, 50, 176);
-    doc.text(`Risultato: ${intervention.risultato || 'N/A'}`, 50, 194);
-    doc.moveDown();
+    let y = MARGIN;
 
-    // Cliente / Sede
-    doc.fontSize(14).text('Cliente e sede', 50, doc.y + 10);
-    doc.fontSize(12);
-    doc.text(`Ragione sociale: ${client.ragioneSociale || 'N/A'}`, 50, doc.y + 20);
-    doc.text(`Sede: ${location.nomeSede || 'N/A'}`, 50, doc.y + 38);
-    doc.text(`Indirizzo: ${location.indirizzo || 'N/A'}`, 50, doc.y + 56);
-    if (location.citta) doc.text(`${location.cap || ''} ${location.citta} (${location.provincia || ''})`, 50, doc.y + 74);
-    doc.moveDown();
+    // Intestazione
+    doc.fontSize(18).text('HYGIENIX - ECOLOGIA AMBIENTE', MARGIN, y);
+    y += 22;
+    doc.fontSize(12).fillColor('#333').text('Report intervento', MARGIN, y);
+    y += 20;
+    doc.fontSize(9).fillColor('#666').text(`Intervento #${(intervention.id || '').substring(0, 8)}  |  ${tipoIntervento.nome || 'Intervento'}`, MARGIN, y);
+    y += LINE_H + 4;
 
-    // Tecnico
-    doc.fontSize(14).text('Tecnico', 50, doc.y + 10);
-    doc.fontSize(12);
-    doc.text(`Nome: ${tecnico.nome || ''} ${tecnico.cognome || ''}`.trim() || 'N/A', 50, doc.y + 20);
-    doc.moveDown();
+    doc.moveTo(MARGIN, y).lineTo(A4.width - MARGIN, y).stroke('#ccc');
+    y += 12;
 
-    // Note tecniche
-    if (intervention.noteTecnico) {
-      doc.fontSize(14).text('Note tecniche', 50, doc.y + 10);
-      doc.fontSize(12);
-      doc.text(intervention.noteTecnico, 50, doc.y + 20, { width: 500 });
-      doc.moveDown();
-    }
+    // Cliente e sede
+    doc.fontSize(10).fillColor('#000').text('Cliente e sede', MARGIN, y);
+    y += LINE_H;
+    doc.fontSize(9);
+    doc.text(`Ragione sociale: ${client.ragioneSociale || '-'}`, MARGIN, y);
+    y += LINE_H;
+    doc.text(`Sede: ${location.nomeSede || '-'}`, MARGIN, y);
+    y += LINE_H;
+    doc.text(`Indirizzo: ${location.indirizzo || '-'}${location.citta ? ', ' + (location.cap || '') + ' ' + location.citta + (location.provincia ? ' (' + location.provincia + ')' : '') : ''}`, MARGIN, y, { width: A4.width - 2 * MARGIN });
+    y += LINE_H * 2;
 
-    // Condizioni ambientali
-    if (intervention.temperatura != null || intervention.umidita != null) {
-      doc.fontSize(14).text('Condizioni ambientali', 50, doc.y + 10);
-      doc.fontSize(12);
-      if (intervention.temperatura != null) doc.text(`Temperatura: ${intervention.temperatura}°C`, 50, doc.y + 20);
-      if (intervention.umidita != null) doc.text(`Umidità: ${intervention.umidita}%`, 50, doc.y + 38);
-      doc.moveDown();
-    }
+    // Data e ora inizio / fine
+    doc.fontSize(10).fillColor('#000').text('Tempi di esecuzione', MARGIN, y);
+    y += LINE_H;
+    doc.fontSize(9);
+    doc.text(`Ora inizio: ${formatDateTime(dataInizio)}`, MARGIN, y);
+    doc.text(`Ora fine:   ${formatDateTime(dataFine)}`, 300, y);
+    y += LINE_H * 2;
+
+    // Tecnico e risultato
+    doc.fontSize(10).fillColor('#000').text('Tecnico: ', MARGIN, y);
+    doc.fontSize(9).text(`${tecnico.nome || ''} ${tecnico.cognome || ''}`.trim() || '-', 80, y);
+    doc.fontSize(10).text('Risultato: ', 300, y);
+    doc.fontSize(9).text(intervention.risultato || '-', 360, y);
+    y += LINE_H * 2;
 
     // Prodotti utilizzati
+    doc.fontSize(10).fillColor('#000').text('Prodotti utilizzati', MARGIN, y);
+    y += LINE_H;
+    doc.fontSize(9);
     if (prodotti.length > 0) {
-      doc.fontSize(14).text('Prodotti utilizzati', 50, doc.y + 10);
-      doc.fontSize(12);
       prodotti.forEach((riga, i) => {
         const p = riga.prodotto || {};
-        doc.text(`${i + 1}. ${p.nomeCommerciale || 'N/A'} - ${riga.quantitaUsata || 0} ${riga.unitaMisura || ''}`, 50, doc.y + 15);
+        doc.text(`${i + 1}. ${p.nomeCommerciale || '-'}  -  ${riga.quantitaUsata ?? '-'} ${riga.unitaMisura || ''}`, MARGIN, y);
+        y += LINE_H;
       });
-      doc.moveDown();
+    } else {
+      doc.text('Nessun prodotto registrato.', MARGIN, y);
+      y += LINE_H;
+    }
+    y += 6;
+
+    // Note del tecnico
+    doc.fontSize(10).fillColor('#000').text('Note del tecnico', MARGIN, y);
+    y += LINE_H;
+    doc.fontSize(9);
+    let noteText = intervention.noteTecnico && intervention.noteTecnico.trim() ? intervention.noteTecnico.trim() : 'Nessuna nota.';
+    if (noteText.length > 450) noteText = noteText.substring(0, 447) + '...';
+    doc.text(noteText, MARGIN, y, { width: A4.width - 2 * MARGIN });
+    y += doc.heightOfString(noteText, { width: A4.width - 2 * MARGIN }) + 8;
+
+    // Condizioni ambientali (se presenti)
+    if (intervention.temperatura != null || intervention.umidita != null) {
+      doc.fontSize(10).fillColor('#000').text('Condizioni ambientali', MARGIN, y);
+      y += LINE_H;
+      doc.fontSize(9);
+      if (intervention.temperatura != null) doc.text(`Temperatura: ${intervention.temperatura}°C`, MARGIN, y);
+      if (intervention.umidita != null) doc.text(`Umidità: ${intervention.umidita}%`, 220, y);
+      y += LINE_H + 6;
     }
 
-    // Firma
-    if (intervention.firmaTecnicoUrl) {
-      doc.fontSize(10).text('Firma tecnico in loco: presente (vedi portale).', 50, doc.y + 10);
-    }
-    if (intervention.firmaClienteUrl) {
-      doc.fontSize(10).text('Firma cliente: presente (vedi portale).', 50, doc.y + 25);
-    }
+    // Firme (riferimento)
+    doc.fontSize(9).fillColor('#666');
+    if (intervention.firmaTecnicoUrl) doc.text('Firma tecnico in loco: presente.', MARGIN, y);
+    if (intervention.firmaClienteUrl) doc.text('Firma cliente: presente.', 280, y);
+    y += LINE_H;
+
+    // Pie di pagina
+    doc.fontSize(8).fillColor('#999')
+      .text(
+        `Documento generato il ${new Date().toLocaleString('it-IT')} - Hygienix Pest Control`,
+        MARGIN,
+        A4.height - MARGIN - 20,
+        { width: A4.width - 2 * MARGIN, align: 'center' }
+      );
 
     doc.end();
     stream.on('finish', () => resolve());
@@ -90,7 +127,8 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
 }
 
 /**
- * Salva il report in uploads/reports/ e restituisce l'URL da salvare (es. /uploads/reports/report-xxx.pdf).
+ * Salva il report in uploads/reports/ e restituisce l'URL (es. /uploads/reports/report-xxx.pdf).
+ * Il documento viene poi associato al cliente tramite DocumentoCliente nella route complete.
  */
 async function saveInterventionReport(intervention, uploadRootDir) {
   const reportsDir = path.join(uploadRootDir, 'reports');
