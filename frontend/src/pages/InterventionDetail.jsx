@@ -28,6 +28,7 @@ export default function InterventionDetail() {
   const [addingProdotto, setAddingProdotto] = useState(false)
   const [addProdottoId, setAddProdottoId] = useState('')
   const [addQuantita, setAddQuantita] = useState('')
+  const [rigenerandoReport, setRigenerandoReport] = useState(false)
 
   useEffect(() => {
     loadIntervention()
@@ -213,6 +214,27 @@ export default function InterventionDetail() {
             >
               <FileText className="h-4 w-4" /> Scarica report PDF
             </a>
+          )}
+          {intervention?.stato === 'completato' && user?.role === 'admin' && (
+            <button
+              type="button"
+              disabled={rigenerandoReport}
+              onClick={async () => {
+                setRigenerandoReport(true)
+                try {
+                  await interventionsAPI.rigeneraReport(id)
+                  toast.success('Report PDF rigenerato e assegnato al cliente.')
+                  loadIntervention()
+                } catch (e) {
+                  toast.error(e.response?.data?.message || 'Errore rigenerazione report')
+                } finally {
+                  setRigenerandoReport(false)
+                }
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 disabled:opacity-50"
+            >
+              <FileText className="h-4 w-4" /> {intervention?.reportPdfUrl ? 'Rigenera report' : 'Genera report'}
+            </button>
           )}
         </div>
 

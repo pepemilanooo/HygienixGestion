@@ -276,6 +276,49 @@ export default function ClientDetail() {
             </label>
           </div>
 
+          {/* Report interventi (generati alla chiusura di ogni intervento) */}
+          <div className="mt-6 pt-4 border-t">
+            <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Report interventi
+            </h4>
+            <p className="text-sm text-gray-600 mb-3">
+              I report PDF vengono creati in automatico quando un tecnico chiude un intervento. Qui trovi quelli assegnati a questo cliente.
+            </p>
+            {client?.documenti?.filter(d => d.tipo === 'report').length > 0 ? (
+              <ul className="space-y-2">
+                {client.documenti.filter(d => d.tipo === 'report').map((doc) => (
+                  <li key={doc.id} className="flex items-center justify-between py-2 px-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <a
+                      href={`${API_BASE}${doc.url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-indigo-700 hover:underline font-medium"
+                    >
+                      <FileText className="h-4 w-4" />
+                      {doc.nome}
+                      {doc.dataDocumento && (
+                        <span className="text-gray-500 text-sm font-normal">
+                          ({new Date(doc.dataDocumento).toLocaleDateString('it-IT')})
+                        </span>
+                      )}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDocumento(doc.id)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      title="Elimina"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded">Nessun report presente. I report vengono generati automaticamente alla chiusura di ogni intervento (con firma tecnico).
+              </p>
+            )}
+          </div>
+
           {/* Fatture caricate (da altri programmi) */}
           <div className="mt-6 pt-4 border-t">
             <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
@@ -311,9 +354,9 @@ export default function ClientDetail() {
                 />
               </label>
             </div>
-            {client?.documenti?.length > 0 ? (
+            {client?.documenti?.filter(d => d.tipo !== 'report').length > 0 ? (
               <ul className="space-y-2">
-                {client.documenti.map((doc) => (
+                {client.documenti.filter(d => d.tipo !== 'report').map((doc) => (
                   <li key={doc.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                     <a
                       href={`${API_BASE}${doc.url}`}
@@ -322,7 +365,6 @@ export default function ClientDetail() {
                       className="flex items-center gap-2 text-primary-600 hover:underline"
                     >
                       <FileText className="h-4 w-4" />
-                      {doc.tipo === 'report' && <span className="text-xs bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">Report</span>}
                       {doc.nome}
                       {doc.dataDocumento && (
                         <span className="text-gray-500 text-sm">

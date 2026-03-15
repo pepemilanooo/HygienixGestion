@@ -103,6 +103,7 @@ export const interventionsAPI = {
   create: (data) => apiClient.post('/interventions', data),
   checkIn: (id, lat, lng) => apiClient.post(`/interventions/${id}/check-in`, { lat, lng }),
   complete: (id, data) => apiClient.post(`/interventions/${id}/complete`, data),
+  rigeneraReport: (id) => apiClient.post(`/interventions/${id}/rigenera-report`),
   addProdotto: (id, data) => apiClient.post(`/interventions/${id}/prodotti`, data),
   removeProdotto: (id, rigaId) => apiClient.delete(`/interventions/${id}/prodotti/${rigaId}`),
 }

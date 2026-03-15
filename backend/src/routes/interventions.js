@@ -290,6 +290,65 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
   }
 });
 
+// POST /api/interventions/:id/rigenera-report (admin) - Rigenera il PDF report per un intervento già completato
+router.post('/:id/rigenera-report', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const full = await prisma.intervention.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        location: true,
+        tecnico: { select: { nome: true, cognome: true } },
+        tipoIntervento: true,
+        prodotti: { include: { prodotto: true } },
+        foto: true
+      }
+    });
+    if (!full) return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    if (full.stato !== 'completato') {
+      return res.status(400).json({ success: false, message: 'Solo gli interventi completati possono avere il report rigenerato.' });
+    }
+
+    const uploadPath = process.env.UPLOAD_PATH || './uploads';
+    const uploadRootDir = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', '..', uploadPath);
+    const reportPdfUrl = await saveInterventionReport(full, uploadRootDir);
+
+    await prisma.intervention.update({
+      where: { id },
+      data: { reportPdfUrl }
+    });
+
+    const dataEsecuzione = full.dataEsecuzione ? new Date(full.dataEsecuzione) : new Date();
+    const nomeReport = `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} ${dataEsecuzione.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - ${full.tipoIntervento?.nome || 'Intervento'}`;
+
+    const esistente = await prisma.documentoCliente.findFirst({
+      where: { clientId: full.clientId, tipo: 'report', url: reportPdfUrl }
+    });
+    if (esistente) {
+      await prisma.documentoCliente.update({
+        where: { id: esistente.id },
+        data: { nome: nomeReport, dataDocumento: dataEsecuzione }
+      });
+    } else {
+      await prisma.documentoCliente.create({
+        data: {
+          clientId: full.clientId,
+          url: reportPdfUrl,
+          nome: nomeReport,
+          tipo: 'report',
+          dataDocumento: dataEsecuzione
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'Report PDF rigenerato e assegnato al cliente.', reportPdfUrl });
+  } catch (error) {
+    console.error('Rigenera report error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Errore durante la rigenerazione del report' });
+  }
+});
+
 // POST /api/interventions/:id/prodotti - Aggiungi prodotto all'intervento (scarico da magazzino)
 router.post('/:id/prodotti', authMiddleware, requireTecnico, async (req, res) => {
   try {
