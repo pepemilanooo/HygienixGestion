@@ -22,7 +22,14 @@ export const useAuthStore = create(
           set({ user, isAuthenticated: true, isLoading: false })
           return { success: true }
         } catch (error) {
-          const message = error.response?.data?.message || 'Login fallito'
+          let message = error.response?.data?.message || 'Login fallito'
+          if (!error.response && error.message) {
+            if (error.code === 'ERR_NETWORK') {
+              message = 'Server non raggiungibile. Verifica che il backend sia online e che l\'URL API sia corretto (variabile VITE_API_URL).'
+            } else {
+              message = `Errore di rete: ${error.message}`
+            }
+          }
           set({ error: message, isLoading: false })
           return { success: false, error: message }
         }

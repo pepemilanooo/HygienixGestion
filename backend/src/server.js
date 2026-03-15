@@ -33,13 +33,19 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+const corsOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  process.env.FRONTEND_URL
+].filter(Boolean);
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175'
-  ],
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (corsOrigins.some(o => origin === o)) return cb(null, true);
+    if (origin.endsWith('.up.railway.app') || origin.endsWith('.railway.app')) return cb(null, true);
+    cb(null, false);
+  },
   credentials: true
 }));
 
