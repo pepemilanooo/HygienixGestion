@@ -39,6 +39,8 @@ model Client {
   cap              String?
   provincia        String?
   note             String?
+  consigliere      String?  // opzionale
+  telefonoConsigliere String?  @map("telefono_consigliere") // opzionale
   attivo           Boolean  @default(true)
   contrattoUrl     String?  @map("contratto_url")
   createdAt        DateTime @default(now()) @map("created_at")

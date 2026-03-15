@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { interventionsAPI, uploadAPI, prodottiAPI } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import SignaturePad from '../components/SignaturePad'
-import { MapPin, Calendar, User, Clock, CheckCircle, ArrowLeft, PenTool, Package, Phone, Lock } from 'lucide-react'
+import { MapPin, Calendar, User, Clock, CheckCircle, ArrowLeft, PenTool, Package, Phone, Lock, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -204,6 +204,16 @@ export default function InterventionDetail() {
           }`}>
             {intervention?.stato}
           </span>
+          {intervention?.stato === 'completato' && intervention?.reportPdfUrl && (
+            <a
+              href={`${API_BASE}${intervention.reportPdfUrl}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-medium hover:bg-indigo-200"
+            >
+              <FileText className="h-4 w-4" /> Scarica report PDF
+            </a>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">

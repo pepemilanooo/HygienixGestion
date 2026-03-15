@@ -1,7 +1,9 @@
 const express = require('express');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { authMiddleware, requireAdmin, requireTecnico } = require('../middleware/auth');
 const { haversineDistance } = require('../utils/helpers');
+const { saveInterventionReport } = require('../services/interventionReportPdf');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -224,12 +226,13 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
       return res.status(403).json({ success: false, message: 'Accesso negato' });
     }
 
+    const dataEsecuzione = new Date();
     const updated = await prisma.intervention.update({
       where: { id },
       data: {
         stato: 'completato',
-        dataEsecuzione: new Date(),
-        checkOutTime: new Date(),
+        dataEsecuzione,
+        checkOutTime: dataEsecuzione,
         noteTecnico: noteTecnico || null,
         risultato: risultato || null,
         firmaTecnicoUrl: firmaTecnicoUrl.trim(),
@@ -237,8 +240,52 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
       }
     });
 
-    res.json({ success: true, message: 'Intervento completato', data: updated });
+    // Genera PDF report e assegna al cliente (scaricabile da registrazioni cliente)
+    let reportPdfUrl = null;
+    try {
+      const full = await prisma.intervention.findUnique({
+        where: { id },
+        include: {
+          client: true,
+          location: true,
+          tecnico: { select: { nome: true, cognome: true } },
+          tipoIntervento: true,
+          prodotti: { include: { prodotto: true } },
+          foto: true
+        }
+      });
+      const uploadPath = process.env.UPLOAD_PATH || './uploads';
+      const uploadRootDir = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', '..', uploadPath);
+      reportPdfUrl = await saveInterventionReport(full, uploadRootDir);
+      await prisma.intervention.update({
+        where: { id },
+        data: { reportPdfUrl }
+      });
+      await prisma.documentoCliente.create({
+        data: {
+          clientId: updated.clientId,
+          url: reportPdfUrl,
+          nome: `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} - ${full.tipoIntervento?.nome || 'Intervento'}`,
+          tipo: 'report',
+          dataDocumento: dataEsecuzione
+        }
+      });
+    } catch (pdfErr) {
+      console.error('Errore generazione PDF report:', pdfErr);
+    }
+
+    const updatedWithReport = await prisma.intervention.findUnique({
+      where: { id },
+      include: {
+        client: { select: { ragioneSociale: true } },
+        location: { select: { nomeSede: true } },
+        tipoIntervento: { select: { nome: true } }
+      }
+    });
+
+    res.json({ success: true, message: 'Intervento completato' + (reportPdfUrl ? '. Report PDF generato e assegnato al cliente.' : ''), data: updatedWithReport });
   } catch (error) {
+    console.error('Complete intervention error:', error);
     res.status(500).json({ success: false, message: 'Errore completamento' });
   }
 });

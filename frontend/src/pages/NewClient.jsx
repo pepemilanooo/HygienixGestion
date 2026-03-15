@@ -19,6 +19,8 @@ export default function NewClient() {
     cap: '',
     provincia: '',
     note: '',
+    consigliere: '',
+    telefonoConsigliere: '',
     // Prima sede (opzionale)
     aggiungiSede: false,
     nomeSede: '',
@@ -43,7 +45,9 @@ export default function NewClient() {
         citta: formData.citta.trim() || undefined,
         cap: formData.cap.trim() || undefined,
         provincia: formData.provincia.trim() || undefined,
-        note: formData.note.trim() || undefined
+        note: formData.note.trim() || undefined,
+        consigliere: formData.consigliere.trim() || undefined,
+        telefonoConsigliere: formData.telefonoConsigliere.trim() || undefined
       }
       const response = await clientsAPI.create(payload)
       const clientId = response.data.data.id
@@ -188,6 +192,26 @@ export default function NewClient() {
               className="input"
               value={formData.note}
               onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">Consigliere (opzionale)</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Nome del consigliere"
+              value={formData.consigliere}
+              onChange={(e) => setFormData({ ...formData, consigliere: e.target.value })}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">Telefono consigliere (opzionale)</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Numero di telefono del consigliere"
+              value={formData.telefonoConsigliere}
+              onChange={(e) => setFormData({ ...formData, telefonoConsigliere: e.target.value })}
             />
           </div>
         </div>

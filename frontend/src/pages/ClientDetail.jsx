@@ -190,6 +190,42 @@ export default function ClientDetail() {
                   {client.codiceFiscale && <>CF {client.codiceFiscale}</>}
                 </p>
               )}
+              <div className="mt-2">
+                <label className="text-xs text-gray-500">Consigliere (opzionale)</label>
+                <input
+                  type="text"
+                  className="input mt-1 py-1 text-sm"
+                  placeholder="Aggiungi consigliere"
+                  value={client?.consigliere ?? ''}
+                  onChange={(e) => setClient(prev => prev ? { ...prev, consigliere: e.target.value } : null)}
+                  onBlur={async () => {
+                    if (client?.consigliere !== undefined) {
+                      try {
+                        await clientsAPI.update(id, { consigliere: client.consigliere || null })
+                        toast.success('Consigliere aggiornato')
+                      } catch { /* ignore */ }
+                    }
+                  }}
+                />
+              </div>
+              <div className="mt-2">
+                <label className="text-xs text-gray-500">Telefono consigliere (opzionale)</label>
+                <input
+                  type="text"
+                  className="input mt-1 py-1 text-sm"
+                  placeholder="Telefono consigliere"
+                  value={client?.telefonoConsigliere ?? ''}
+                  onChange={(e) => setClient(prev => prev ? { ...prev, telefonoConsigliere: e.target.value } : null)}
+                  onBlur={async () => {
+                    if (client?.telefonoConsigliere !== undefined) {
+                      try {
+                        await clientsAPI.update(id, { telefonoConsigliere: client.telefonoConsigliere || null })
+                        toast.success('Telefono consigliere aggiornato')
+                      } catch { /* ignore */ }
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
           <div>
@@ -286,6 +322,7 @@ export default function ClientDetail() {
                       className="flex items-center gap-2 text-primary-600 hover:underline"
                     >
                       <FileText className="h-4 w-4" />
+                      {doc.tipo === 'report' && <span className="text-xs bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">Report</span>}
                       {doc.nome}
                       {doc.dataDocumento && (
                         <span className="text-gray-500 text-sm">

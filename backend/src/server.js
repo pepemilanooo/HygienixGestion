@@ -66,7 +66,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const fs = require('fs');
 const uploadPath = process.env.UPLOAD_PATH || './uploads';
 const uploadFullPath = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', uploadPath);
-['', 'documents', 'signatures', 'photos'].forEach(sub => {
+['', 'documents', 'signatures', 'photos', 'reports'].forEach(sub => {
   const dir = sub ? path.join(uploadFullPath, sub) : uploadFullPath;
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });

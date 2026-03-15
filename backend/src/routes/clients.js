@@ -82,7 +82,7 @@ router.post('/:id/documenti', authMiddleware, requireAdmin, async (req, res) => 
         clientId,
         url: url.trim(),
         nome: (nome && nome.trim()) || 'Documento',
-        tipo: (tipo && tipo.trim()) === 'altro' ? 'altro' : 'fattura',
+        tipo: (tipo && ['fattura', 'report', 'altro'].includes(String(tipo).trim())) ? String(tipo).trim() : 'fattura',
         dataDocumento: dataDocumento ? new Date(dataDocumento) : null
       }
     });
@@ -146,7 +146,7 @@ router.post('/',
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { ragioneSociale, tipo, piva, codiceFiscale, email, telefono, indirizzo, citta, cap, provincia, note } = req.body;
+      const { ragioneSociale, tipo, piva, codiceFiscale, email, telefono, indirizzo, citta, cap, provincia, note, consigliere, telefonoConsigliere } = req.body;
       const nome = (ragioneSociale && typeof ragioneSociale === 'string') ? ragioneSociale.trim() : '';
       if (!nome) {
         return res.status(400).json({ success: false, message: 'Ragione sociale obbligatoria' });
@@ -166,6 +166,8 @@ router.post('/',
       if (setIfPresent(cap)) data.cap = String(cap).trim();
       if (setIfPresent(provincia)) data.provincia = String(provincia).trim();
       if (setIfPresent(note)) data.note = String(note).trim();
+      if (setIfPresent(consigliere)) data.consigliere = String(consigliere).trim();
+      if (setIfPresent(telefonoConsigliere)) data.telefonoConsigliere = String(telefonoConsigliere).trim();
 
       const client = await prisma.client.create({ data });
 
