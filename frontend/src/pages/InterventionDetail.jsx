@@ -155,13 +155,14 @@ export default function InterventionDetail() {
       })
       const reportGenerato = res.data?.reportGenerato
       const reportPdfUrl = res.data?.data?.reportPdfUrl
-      toast.success(res.data?.message || 'Intervento completato!')
+      const msg = res.data?.message || 'Intervento completato!'
+      toast.success(msg)
       if (reportGenerato === false) {
-        toast('Report PDF non generato. Un admin può generarlo da questa pagina con "Genera report".', { icon: '⚠️', duration: 5000 })
+        toast(msg.includes('Report non generato') ? msg : 'Report PDF non generato. Un admin può generarlo da questa pagina con "Genera report".', { icon: '⚠️', duration: 6000 })
       }
       loadIntervention()
-      // Scarica il report PDF se generato
-      if (reportPdfUrl) {
+      // Chiedi se vuole scaricare il report (solo se generato)
+      if (reportPdfUrl && window.confirm('Report PDF generato. Vuoi scaricarlo ora?')) {
         try {
           const url = `${API_BASE}${reportPdfUrl}`
           const response = await fetch(url)
@@ -177,7 +178,8 @@ export default function InterventionDetail() {
           URL.revokeObjectURL(blobUrl)
         } catch (e) {
           console.warn('Download report:', e)
-          toast('Report generato. Puoi scaricarlo dal link "Scarica report PDF" qui sopra.', { duration: 4000 })
+          window.open(`${API_BASE}${reportPdfUrl}`, '_blank')
+          toast('Apertura in nuova scheda. Se non si scarica, usa il link "Scarica report PDF" sopra.', { duration: 4000 })
         }
       }
     } catch (error) {

@@ -18,6 +18,7 @@ export default function ClientDetail() {
   const [uploadingFattura, setUploadingFattura] = useState(false)
   const [fatturaNome, setFatturaNome] = useState('')
   const [fatturaData, setFatturaData] = useState('')
+  const [documenti, setDocumenti] = useState([])
 
   useEffect(() => {
     loadClient()
@@ -25,8 +26,12 @@ export default function ClientDetail() {
 
   const loadClient = async () => {
     try {
-      const response = await clientsAPI.getById(id)
-      setClient(response.data.data)
+      const [clientRes, docRes] = await Promise.all([
+        clientsAPI.getById(id),
+        clientsAPI.getDocumenti(id).catch(() => ({ data: { data: [] } }))
+      ])
+      setClient(clientRes.data.data)
+      setDocumenti(Array.isArray(docRes?.data?.data) ? docRes.data.data : [])
     } catch (error) {
       toast.error('Cliente non trovato')
       navigate('/clients')
@@ -284,9 +289,9 @@ export default function ClientDetail() {
             <p className="text-sm text-gray-600 mb-3">
               I report PDF vengono creati in automatico quando un tecnico chiude un intervento. Qui trovi quelli assegnati a questo cliente.
             </p>
-            {client?.documenti?.filter(d => d.tipo === 'report').length > 0 ? (
+            {documenti.filter(d => d.tipo === 'report').length > 0 ? (
               <ul className="space-y-2">
-                {client.documenti.filter(d => d.tipo === 'report').map((doc) => (
+                {documenti.filter(d => d.tipo === 'report').map((doc) => (
                   <li key={doc.id} className="flex items-center justify-between py-2 px-3 bg-indigo-50 rounded-lg border border-indigo-100">
                     <a
                       href={`${API_BASE}${doc.url}`}
@@ -354,9 +359,9 @@ export default function ClientDetail() {
                 />
               </label>
             </div>
-            {client?.documenti?.filter(d => d.tipo !== 'report').length > 0 ? (
+            {documenti.filter(d => d.tipo !== 'report').length > 0 ? (
               <ul className="space-y-2">
-                {client.documenti.filter(d => d.tipo !== 'report').map((doc) => (
+                {documenti.filter(d => d.tipo !== 'report').map((doc) => (
                   <li key={doc.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                     <a
                       href={`${API_BASE}${doc.url}`}
