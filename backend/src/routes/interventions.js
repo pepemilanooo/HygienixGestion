@@ -1,0 +1,399 @@
+const express = require('express');
+const { PrismaClient } = require('@prisma/client');
+const { authMiddleware, requireAdmin, requireTecnico } = require('../middleware/auth');
+const { haversineDistance } = require('../utils/helpers');
+
+const router = express.Router();
+const prisma = new PrismaClient();
+
+// GET /api/interventions
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { 
+      stato, 
+      tecnicoId, 
+      clientId, 
+      from, 
+      to, 
+      tipoCodice,
+      page = 1, 
+      limit = 50 
+    } = req.query;
+
+    const where = {};
+
+    // Filtro per tipo (es. solo sopralluoghi: tipoCodice=SOPR)
+    if (tipoCodice) {
+      const tipo = await prisma.tipoIntervento.findUnique({ where: { codice: String(tipoCodice).toUpperCase() } });
+      if (tipo) where.tipoInterventoId = tipo.id;
+    }
+
+    // Filter by role
+    if (req.user.ruolo === 'tecnico') {
+      where.tecnicoId = req.user.id;
+    } else if (tecnicoId) {
+      where.tecnicoId = tecnicoId;
+    }
+
+    if (stato) where.stato = stato;
+    if (clientId) where.clientId = clientId;
+    
+    if (from || to) {
+      where.dataProgrammata = {};
+      if (from) where.dataProgrammata.gte = new Date(from);
+      if (to) where.dataProgrammata.lte = new Date(to);
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [interventions, total] = await Promise.all([
+      prisma.intervention.findMany({
+        where,
+        include: {
+          client: { select: { ragioneSociale: true } },
+          location: { select: { nomeSede: true, indirizzo: true, latitudine: true, longitudine: true } },
+          tecnico: { select: { nome: true, cognome: true } },
+          tipoIntervento: { select: { nome: true, colore: true } },
+          _count: { select: { foto: true, prodotti: true } }
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: { dataProgrammata: 'desc' }
+      }),
+      prisma.intervention.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      data: interventions,
+      meta: { total, page: parseInt(page), limit: parseInt(limit) }
+    });
+  } catch (error) {
+    console.error('Get interventions error:', error);
+    res.status(500).json({ success: false, message: 'Errore nel recupero interventi' });
+  }
+});
+
+// GET /api/interventions/:id
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const intervention = await prisma.intervention.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        location: true,
+        tecnico: { select: { id: true, nome: true, cognome: true, telefono: true } },
+        tipoIntervento: true,
+        foto: true,
+        prodotti: {
+          include: { prodotto: true }
+        }
+      }
+    });
+
+    if (!intervention) {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+
+    // Check permission
+    if (req.user.ruolo === 'tecnico' && intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+
+    res.json({ success: true, data: intervention });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Errore nel recupero' });
+  }
+});
+
+// POST /api/interventions (admin only)
+router.post('/', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { clientId, locationId, tipoInterventoId, dataProgrammata, tecnicoId, noteInterne } = req.body;
+    if (!clientId || !locationId || !tipoInterventoId || !dataProgrammata) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cliente, sede, tipo intervento e data/ora sono obbligatori'
+      });
+    }
+    const data = {
+      clientId: String(clientId).trim(),
+      locationId: String(locationId).trim(),
+      tipoInterventoId: String(tipoInterventoId).trim(),
+      dataProgrammata: new Date(dataProgrammata),
+      noteInterne: noteInterne && String(noteInterne).trim() ? String(noteInterne).trim() : null
+    };
+    if (tecnicoId && String(tecnicoId).trim()) {
+      data.tecnicoId = String(tecnicoId).trim();
+    } else {
+      data.tecnicoId = null;
+    }
+    const intervention = await prisma.intervention.create({
+      data,
+      include: {
+        client: { select: { ragioneSociale: true } },
+        location: { select: { nomeSede: true } },
+        tipoIntervento: { select: { nome: true } }
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Intervento creato',
+      data: intervention
+    });
+  } catch (error) {
+    console.error('Create intervention error:', error);
+    const msg = error.code === 'P2003' ? 'Cliente, sede o tipo intervento non validi' : (error.message || 'Errore nella creazione');
+    res.status(500).json({ success: false, message: msg });
+  }
+});
+
+// POST /api/interventions/:id/check-in (tecnico)
+router.post('/:id/check-in', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lat, lng } = req.body;
+    const tecnicoId = req.user.id;
+
+    const intervention = await prisma.intervention.findUnique({
+      where: { id },
+      include: { location: true }
+    });
+
+    if (!intervention) {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+
+    if (intervention.tecnicoId !== tecnicoId) {
+      return res.status(403).json({ success: false, message: 'Non assegnato a te' });
+    }
+
+    // Verify distance if location has coordinates
+    if (intervention.location?.latitudine && intervention.location?.longitudine) {
+      const distance = haversineDistance(
+        parseFloat(lat),
+        parseFloat(lng),
+        intervention.location.latitudine,
+        intervention.location.longitudine
+      );
+
+      if (distance > 0.5) { // 500 meters
+        return res.status(400).json({
+          success: false,
+          message: `Troppo lontano (${distance.toFixed(2)} km). Avvicinati alla sede.`
+        });
+      }
+    }
+
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data: {
+        stato: 'in_corso',
+        checkInLat: parseFloat(lat),
+        checkInLng: parseFloat(lng),
+        checkInTime: new Date()
+      }
+    });
+
+    res.json({ success: true, message: 'Check-in effettuato', data: updated });
+  } catch (error) {
+    console.error('Check-in error:', error);
+    res.status(500).json({ success: false, message: 'Errore check-in' });
+  }
+});
+
+// POST /api/interventions/:id/complete (tecnico) - richiede firma in loco (firmaTecnicoUrl)
+router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { noteTecnico, risultato, firmaTecnicoUrl, firmaClienteUrl } = req.body;
+
+    if (!firmaTecnicoUrl || !firmaTecnicoUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Firma in loco obbligatoria per chiudere l\'intervento. Firma prima di completare.'
+      });
+    }
+
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data: {
+        stato: 'completato',
+        dataEsecuzione: new Date(),
+        checkOutTime: new Date(),
+        noteTecnico: noteTecnico || null,
+        risultato: risultato || null,
+        firmaTecnicoUrl: firmaTecnicoUrl.trim(),
+        firmaClienteUrl: firmaClienteUrl && firmaClienteUrl.trim() ? firmaClienteUrl.trim() : null
+      }
+    });
+
+    res.json({ success: true, message: 'Intervento completato', data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Errore completamento' });
+  }
+});
+
+// POST /api/interventions/:id/prodotti - Aggiungi prodotto all'intervento (scarico da magazzino)
+router.post('/:id/prodotti', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prodottoId, quantitaUsata, note } = req.body;
+
+    const intervention = await prisma.intervention.findUnique({
+      where: { id },
+      include: { prodotti: { include: { prodotto: true } } }
+    });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+    if (intervention.stato === 'completato') {
+      return res.status(400).json({ success: false, message: 'Intervento già chiuso' });
+    }
+
+    const qty = parseFloat(quantitaUsata);
+    if (!prodottoId || !(qty > 0)) {
+      return res.status(400).json({ success: false, message: 'prodottoId e quantitaUsata (maggiore di 0) obbligatori' });
+    }
+
+    const prodotto = await prisma.prodotto.findUnique({ where: { id: prodottoId } });
+    if (!prodotto) {
+      return res.status(404).json({ success: false, message: 'Prodotto non trovato' });
+    }
+    if (prodotto.quantitaDisponibile < qty) {
+      return res.status(400).json({
+        success: false,
+        message: `Giacenza insufficiente. Disponibili: ${prodotto.quantitaDisponibile} ${prodotto.unitaMisura}`
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.prodottoUtilizzato.create({
+        data: {
+          interventionId: id,
+          prodottoId,
+          quantitaUsata: qty,
+          unitaMisura: prodotto.unitaMisura,
+          note: note || null
+        }
+      }),
+      prisma.prodotto.update({
+        where: { id: prodottoId },
+        data: { quantitaDisponibile: { decrement: qty } }
+      })
+    ]);
+
+    const updated = await prisma.intervention.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        location: true,
+        tecnico: { select: { id: true, nome: true, cognome: true, telefono: true } },
+        tipoIntervento: true,
+        foto: true,
+        prodotti: { include: { prodotto: true } }
+      }
+    });
+    res.json({ success: true, message: 'Prodotto aggiunto e scaricato da magazzino', data: updated });
+  } catch (error) {
+    console.error('Add product to intervention error:', error);
+    res.status(500).json({ success: false, message: 'Errore aggiunta prodotto' });
+  }
+});
+
+// DELETE /api/interventions/:id/prodotti/:rigaId - Rimuovi prodotto (rientro in magazzino, solo se intervento non chiuso)
+router.delete('/:id/prodotti/:rigaId', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id, rigaId } = req.params;
+
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+    if (intervention.stato === 'completato') {
+      return res.status(400).json({ success: false, message: 'Intervento già chiuso' });
+    }
+
+    const riga = await prisma.prodottoUtilizzato.findFirst({
+      where: { id: rigaId, interventionId: id },
+      include: { prodotto: true }
+    });
+    if (!riga) {
+      return res.status(404).json({ success: false, message: 'Riga non trovata' });
+    }
+
+    await prisma.$transaction([
+      prisma.prodottoUtilizzato.delete({ where: { id: rigaId } }),
+      prisma.prodotto.update({
+        where: { id: riga.prodottoId },
+        data: { quantitaDisponibile: { increment: riga.quantitaUsata } }
+      })
+    ]);
+
+    const updated = await prisma.intervention.findUnique({
+      where: { id },
+      include: {
+        prodotti: { include: { prodotto: true } }
+      }
+    });
+    res.json({ success: true, message: 'Prodotto rimosso e rientrato in magazzino', data: updated });
+  } catch (error) {
+    console.error('Remove product error:', error);
+    res.status(500).json({ success: false, message: 'Errore rimozione prodotto' });
+  }
+});
+
+// POST /api/interventions/:id/firma-tecnico - Salva firma tecnico (in loco)
+router.post('/:id/firma-tecnico', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firmaUrl } = req.body;
+    if (!firmaUrl || !firmaUrl.trim()) {
+      return res.status(400).json({ success: false, message: 'firmaUrl obbligatorio' });
+    }
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data: { firmaTecnicoUrl: firmaUrl.trim() }
+    });
+    res.json({ success: true, message: 'Firma tecnico salvata', data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Errore salvataggio firma' });
+  }
+});
+
+// POST /api/interventions/:id/firma-cliente - Salva firma cliente (opzionale)
+router.post('/:id/firma-cliente', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firmaUrl } = req.body;
+    if (!firmaUrl || !firmaUrl.trim()) {
+      return res.status(400).json({ success: false, message: 'firmaUrl obbligatorio' });
+    }
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data: { firmaClienteUrl: firmaUrl.trim() }
+    });
+    res.json({ success: true, message: 'Firma cliente salvata', data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Errore salvataggio firma' });
+  }
+});
+
+module.exports = router;

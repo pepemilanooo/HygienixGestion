@@ -1,0 +1,41 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "projects": [
+    {
+      "name": "hygienix-saas",
+      "services": [
+        {
+          "name": "backend",
+          "source": {
+            "root": "backend"
+          },
+          "volumes": [
+            {
+              "mountPath": "/data"
+            }
+          ],
+          "build": {
+            "builder": "NIXPACKS"
+          },
+          "deploy": {
+            "startCommand": "npx prisma migrate deploy && npm start",
+            "healthcheckPath": "/api/health"
+          }
+        },
+        {
+          "name": "frontend",
+          "source": {
+            "root": "frontend"
+          },
+          "build": {
+            "builder": "NIXPACKS"
+          },
+          "deploy": {
+            "startCommand": "npx serve -s dist -p $PORT",
+            "healthcheckPath": "/"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+=============================================
+HYGIENIX - ISTRUZIONI DEPLOYMENT RAILWAY
+=============================================
+
+1. CREA ACCOUNT RAILWAY
+   - Vai su https://railway.app
+   - Registrati con GitHub
+
+2. NUOVO PROGETTO
+   - Click "New Project"
+   - Seleziona "Deploy from GitHub repo"
+   - Scegli il repository Hygienix
+
+3. AGGIUNGI POSTGRESQL
+   - Click "New" → "Database" → "Add PostgreSQL"
+   - Railway genera automatico DATABASE_URL
+
+4. DEPLOY BACKEND
+   - Railway rileva automaticamente railway.json
+   - Setta variabili ambiente:
+
+   REQUIRED:
+   -----------
+   JWT_SECRET=genera-stringa-casuale-32-char
+   JWT_REFRESH_SECRET=altra-stringa-casuale-32-char
+   
+   AWS (per upload file):
+   -----------
+   AWS_ACCESS_KEY_ID=tua-aws-key
+   AWS_SECRET_ACCESS_KEY=tua-aws-secret
+   AWS_REGION=eu-west-1
+   AWS_S3_BUCKET=nome-tuo-bucket
+   
+   GOOGLE MAPS:
+   -----------
+   GOOGLE_MAPS_API_KEY=tua-api-key
+
+   EMAIL (opzionale):
+   -----------
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=tua-email
+   SMTP_PASS=tua-app-password
+
+   TWILIO (opzionale):
+   -----------
+   TWILIO_ACCOUNT_SID=xxx
+   TWILIO_AUTH_TOKEN=xxx
+   TWILIO_PHONE_NUMBER=+xxx
+
+5. ESEGUI MIGRATIONS
+   - Railway Console → backend service
+   - Click "Shell" tab
+   - Esegui: npm run migrate
+
+6. VERIFICA DEPLOY
+   - Il backend è live su: https://[nome]-[id].railway.app
+   - Test: GET https://tuo-url.railway.app/api/health
+
+7. DEPLOY FRONTEND
+   - Nuovo servizio Railway
+   - Sorgente: cartella frontend/
+   - Build command: npm run build
+   - Start command: npm start
+   - Variabili:
+     NEXT_PUBLIC_API_URL=https://tuo-backend.railway.app/api
+
+8. CONFIGURA MOBILE
+   - Modifica mobile/src/services/api.js
+   - Cambia API_URL con il tuo backend Railway
+   - Compila APK/IPA con Expo
+
+9. DOMINIO PERSONALIZZATO (opzionale)
+   - Railway Dashboard → Settings → Domains
+   - Aggiungi tuo dominio
+   - Configura DNS CNAME → railway.app
+
+=============================================
+NOTE IMPORTANTI
+=============================================
+
+✅ Il database PostgreSQL è persistente su Railway
+✅ I file upload vanno su S3 (non persistono su Railway ephemeral storage)
+✅ Il backend usa port 3001 (o Railway assegna automaticamente)
+✅ Frontend serve su port 3000 (o Railway assegna automaticamente)
+
+=============================================
+TROUBLESHOOTING
+=============================================
+
+❌ "Cannot connect to database"
+→ Verifica DATABASE_URL in Variables
+
+❌ "JWT Error"
+→ Verifica JWT_SECRET e JWT_REFRESH_SECRET settate
+
+❌ "CORS error" su frontend
+→ Verifica FRONTEND_URL in backend env matches frontend URL
+
+❌ Upload file non funziona
+→ Verifica credenziali AWS S3
+
+=============================================
+CONTATTI
+=============================================
+
+Per assistenza: support@hygienix.it

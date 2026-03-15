@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  nome          String
+  cognome       String
+  ruolo         String    @default("tecnico") // admin, operatore, tecnico
+  telefono      String?
+  attivo        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  ultimoAccesso DateTime? @map("ultimo_accesso")
+
+  interventions Intervention[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Client {
+  id               String   @id @default(uuid())
+  ragioneSociale   String   @map("ragione_sociale")
+  tipo             String   @default("azienda") // azienda, privato, condominio
+  piva             String?
+  codiceFiscale    String?  @map("codice_fiscale")
+  email            String?
+  telefono         String?
+  indirizzo        String?
+  citta            String?
+  cap              String?
+  provincia        String?
+  note             String?
+  attivo           Boolean  @default(true)
+  contrattoUrl     String?  @map("contratto_url")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  locations       Location[]
+  interventions   Intervention[]
+  preventivi      Preventivo[]
+  fatture         Fattura[]
+  documenti       DocumentoCliente[]
+
+  @@map("clients")
+}
+
+model DocumentoCliente {
+  id             String    @id @default(uuid())
+  clientId       String    @map("client_id")
+  tipo           String    @default("fattura") // fattura, altro
+  nome           String    // nome file o descrizione
+  url            String    // path upload
+  dataDocumento  DateTime? @map("data_documento") // data fattura se nota
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("documenti_cliente")
+}
+
+model Preventivo {
+  id          String   @id @default(uuid())
+  numero      String   @unique
+  clientId    String   @map("client_id")
+  data        DateTime @map("data")
+  scadenza    DateTime? @map("scadenza")
+  stato       String   @default("bozza") // bozza, inviato, accettato, rifiutato
+  subtotale   Float    @default(0) @map("subtotale")
+  iva         Float    @default(0) @map("iva")
+  totale      Float    @default(0) @map("totale")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  righe    RigaPreventivo[]
+  fattura  Fattura?
+
+  @@map("preventivi")
+}
+
+model RigaPreventivo {
+  id             String  @id @default(uuid())
+  preventivoId   String  @map("preventivo_id")
+  descrizione    String  @map("descrizione")
+  quantita       Float   @default(1) @map("quantita")
+  prezzoUnitario Float   @map("prezzo_unitario")
+  totale         Float   @map("totale")
+  ordine         Int     @default(0) @map("ordine")
+
+  preventivo Preventivo @relation(fields: [preventivoId], references: [id], onDelete: Cascade)
+
+  @@map("righe_preventivo")
+}
+
+model Fattura {
+  id                 String    @id @default(uuid())
+  numero             String    @unique
+  clientId           String    @map("client_id")
+  preventivoId       String?   @unique @map("preventivo_id")
+  data               DateTime  @map("data")
+  scadenzaPagamento  DateTime? @map("scadenza_pagamento")
+  statoPagamento     String    @default("non_pagata") @map("stato_pagamento") // non_pagata, pagata, parziale
+  subtotale          Float     @default(0) @map("subtotale")
+  iva                Float     @default(0) @map("iva")
+  totale             Float     @default(0) @map("totale")
+  note               String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  preventivo Preventivo? @relation(fields: [preventivoId], references: [id], onDelete: SetNull)
+  righe    RigaFattura[]
+
+  @@map("fatture")
+}
+
+model RigaFattura {
+  id             String  @id @default(uuid())
+  fatturaId      String  @map("fattura_id")
+  descrizione    String  @map("descrizione")
+  quantita       Float   @default(1) @map("quantita")
+  prezzoUnitario Float   @map("prezzo_unitario")
+  totale         Float   @map("totale")
+  ordine         Int     @default(0) @map("ordine")
+
+  fattura Fattura @relation(fields: [fatturaId], references: [id], onDelete: Cascade)
+
+  @@map("righe_fattura")
+}
+
+model Location {
+  id          String  @id @default(uuid())
+  clientId    String  @map("client_id")
+  nomeSede    String  @map("nome_sede")
+  indirizzo   String
+  citta       String?
+  cap         String?
+  provincia   String?
+  latitudine  Float?
+  longitudine Float?
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  client        Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  interventions Intervention[]
+
+  @@map("locations")
+}
+
+model TipoIntervento {
+  id          String  @id @default(uuid())
+  codice      String  @unique
+  nome        String
+  descrizione String?
+  categoria   String? // disinfezione, derattizzazione, disinfestazione
+  colore      String  @default("#3b82f6") // per calendario
+  schedaUrl   String? @map("scheda_url") // PDF scheda tecnica
+  attivo      Boolean @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  interventions Intervention[]
+
+  @@map("tipi_intervento")
+}
+
+model Intervention {
+  id                String    @id @default(uuid())
+  clientId          String    @map("client_id")
+  locationId        String    @map("location_id")
+  tecnicoId         String?   @map("tecnico_id")
+  tipoInterventoId  String    @map("tipo_intervento_id")
+  
+  // Date e stato
+  dataProgrammata   DateTime  @map("data_programmata")
+  dataEsecuzione    DateTime? @map("data_esecuzione")
+  stato             String    @default("pianificato") // pianificato, in_corso, completato, annullato
+  
+  // Dettagli intervento
+  noteTecnico       String?   @map("note_tecnico")
+  noteInterne       String?   @map("note_interne")
+  risultato         String?   // positivo, negativo, parziale
+  
+  // Ambiente
+  temperatura       Float?
+  umidita           Float?
+  
+  // GPS Check-in
+  checkInLat        Float?    @map("check_in_lat")
+  checkInLng        Float?    @map("check_in_lng")
+  checkInTime       DateTime? @map("check_in_time")
+  checkOutLat       Float?    @map("check_out_lat")
+  checkOutLng       Float?    @map("check_out_lng")
+  checkOutTime      DateTime? @map("check_out_time")
+  
+  // Firma e report
+  firmaTecnicoUrl   String?   @map("firma_tecnico_url")  // Firma in loco (obbligatoria per chiudere)
+  firmaClienteUrl   String?   @map("firma_cliente_url")
+  reportPdfUrl      String?   @map("report_pdf_url")
+  
+  // Ricorrenza
+  ricorrenza        String?   // nessuna, settimanale, mensile, trimestrale, annuale
+  interventoPadreId String?   @map("intervento_padre_id")
+  
+  // Promemoria
+  promemoriaInviato Boolean   @default(false) @map("promemoria_inviato")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  location       Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tecnico        User?           @relation(fields: [tecnicoId], references: [id], onDelete: SetNull)
+  tipoIntervento TipoIntervento  @relation(fields: [tipoInterventoId], references: [id])
+  
+  foto          FotoIntervento[]
+  prodotti      ProdottoUtilizzato[]
+  
+  @@map("interventions")
+}
+
+model FotoIntervento {
+  id              String   @id @default(uuid())
+  interventionId  String   @map("intervention_id")
+  fotoUrl         String   @map("foto_url")
+  tipo            String   // prima, durante, dopo, firma
+  descrizione     String?
+  uploadedAt      DateTime @default(now()) @map("uploaded_at")
+
+  intervention Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  @@map("foto_interventi")
+}
+
+model Prodotto {
+  id                String  @id @default(uuid())
+  nomeCommerciale   String  @map("nome_commerciale")
+  principioAttivo   String? @map("principio_attivo")
+  numeroRegistro    String? @map("numero_registro")
+  categoria         String? // insetticida, rodenticida, ecc.
+  unitaMisura       String  @map("unita_misura") // ml, g, kg, l
+  quantitaDisponibile Float @default(0) @map("quantita_disponibile")
+  quantitaMinima    Float   @default(0) @map("quantita_minima")
+  schedaSicurezzaUrl String? @map("scheda_sicurezza_url")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  utilizzi ProdottoUtilizzato[]
+
+  @@map("prodotti")
+}
+
+model ProdottoUtilizzato {
+  id              String  @id @default(uuid())
+  interventionId  String  @map("intervention_id")
+  prodottoId      String  @map("prodotto_id")
+  quantitaUsata   Float   @map("quantita_usata")
+  unitaMisura     String  @map("unita_misura")
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  intervention Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  prodotto     Prodotto     @relation(fields: [prodottoId], references: [id], onDelete: Cascade)
+
+  @@map("prodotti_utilizzati")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  titolo    String
+  messaggio String
+  tipo      String   @default("info") // info, warning, success
+  letta     Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Setting {
+  id    String @id @default(uuid())
+  chiave String @unique
+  valore String
+  
+  @@map("settings")
+}
