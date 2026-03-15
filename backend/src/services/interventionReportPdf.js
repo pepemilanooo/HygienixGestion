@@ -20,6 +20,8 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: MARGIN });
     const stream = fs.createWriteStream(outputFilePath);
+    doc.on('error', reject);
+    stream.on('error', reject);
     doc.pipe(stream);
 
     const client = intervention.client || {};
@@ -131,6 +133,12 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
  * Il documento viene poi associato al cliente tramite DocumentoCliente nella route complete.
  */
 async function saveInterventionReport(intervention, uploadRootDir) {
+  if (!intervention || !intervention.id) {
+    throw new Error('Intervento non valido per la generazione del report');
+  }
+  if (!fs.existsSync(uploadRootDir)) {
+    fs.mkdirSync(uploadRootDir, { recursive: true });
+  }
   const reportsDir = path.join(uploadRootDir, 'reports');
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
@@ -138,6 +146,9 @@ async function saveInterventionReport(intervention, uploadRootDir) {
   const filename = `report-${intervention.id}.pdf`;
   const fullPath = path.join(reportsDir, filename);
   await generateInterventionReportPdf(intervention, fullPath);
+  if (!fs.existsSync(fullPath)) {
+    throw new Error('File report non creato');
+  }
   return `/uploads/reports/${filename}`;
 }
 

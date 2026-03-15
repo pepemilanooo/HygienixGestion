@@ -242,6 +242,7 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
 
     // Genera PDF report e assegna al cliente (scaricabile da registrazioni cliente)
     let reportPdfUrl = null;
+    let reportErrore = null;
     try {
       const full = await prisma.intervention.findUnique({
         where: { id },
@@ -254,24 +255,30 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
           foto: true
         }
       });
-      const uploadPath = process.env.UPLOAD_PATH || './uploads';
-      const uploadRootDir = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', '..', uploadPath);
-      reportPdfUrl = await saveInterventionReport(full, uploadRootDir);
-      await prisma.intervention.update({
-        where: { id },
-        data: { reportPdfUrl }
-      });
-      await prisma.documentoCliente.create({
-        data: {
-          clientId: updated.clientId,
-          url: reportPdfUrl,
-          nome: `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} ${dataEsecuzione.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - ${full.tipoIntervento?.nome || 'Intervento'}`,
-          tipo: 'report',
-          dataDocumento: dataEsecuzione
-        }
-      });
+      if (!full) {
+        reportErrore = 'Intervento non trovato dopo update';
+      } else {
+        const uploadPath = process.env.UPLOAD_PATH || './uploads';
+        const uploadRootDir = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', '..', uploadPath);
+        reportPdfUrl = await saveInterventionReport(full, uploadRootDir);
+        await prisma.intervention.update({
+          where: { id },
+          data: { reportPdfUrl }
+        });
+        await prisma.documentoCliente.create({
+          data: {
+            clientId: updated.clientId,
+            url: reportPdfUrl,
+            nome: `Report intervento ${dataEsecuzione.toLocaleDateString('it-IT')} ${dataEsecuzione.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - ${full.tipoIntervento?.nome || 'Intervento'}`,
+            tipo: 'report',
+            dataDocumento: dataEsecuzione
+          }
+        });
+      }
     } catch (pdfErr) {
+      reportErrore = pdfErr.message || String(pdfErr);
       console.error('Errore generazione PDF report:', pdfErr);
+      if (pdfErr.stack) console.error(pdfErr.stack);
     }
 
     const updatedWithReport = await prisma.intervention.findUnique({
@@ -283,7 +290,15 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
       }
     });
 
-    res.json({ success: true, message: 'Intervento completato' + (reportPdfUrl ? '. Report PDF generato e assegnato al cliente.' : ''), data: updatedWithReport });
+    const msg = reportPdfUrl
+      ? 'Intervento completato. Report PDF generato e assegnato al cliente.'
+      : (reportErrore ? 'Intervento completato. Report non generato (errore tecnico: ' + reportErrore + '). Puoi rigenerarlo dalla scheda intervento.' : 'Intervento completato.');
+    res.json({
+      success: true,
+      message: msg,
+      reportGenerato: !!reportPdfUrl,
+      data: updatedWithReport
+    });
   } catch (error) {
     console.error('Complete intervention error:', error);
     res.status(500).json({ success: false, message: 'Errore completamento' });

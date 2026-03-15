@@ -147,13 +147,17 @@ export default function InterventionDetail() {
     }
     setCompleting(true)
     try {
-      await interventionsAPI.complete(id, {
+      const res = await interventionsAPI.complete(id, {
         noteTecnico: noteTecnico.trim() || null,
         risultato,
         firmaTecnicoUrl,
         firmaClienteUrl: firmaClienteUrl || null
       })
-      toast.success('Intervento completato!')
+      const reportGenerato = res.data?.reportGenerato
+      toast.success(res.data?.message || 'Intervento completato!')
+      if (reportGenerato === false) {
+        toast('Report PDF non generato. Un admin può generarlo da questa pagina con "Genera report".', { icon: '⚠️', duration: 5000 })
+      }
       loadIntervention()
     } catch (error) {
       toast.error(error.response?.data?.message || 'Errore completamento')
