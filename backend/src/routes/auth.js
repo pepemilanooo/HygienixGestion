@@ -76,9 +76,12 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    const message = process.env.NODE_ENV === 'production'
+      ? 'Errore durante il login'
+      : (error.message || 'Errore durante il login');
     res.status(500).json({
       success: false,
-      message: 'Errore durante il login'
+      message
     });
   }
 });

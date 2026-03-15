@@ -4,8 +4,8 @@
   "description": "Backend Hygienix - Pest Control Management",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "start:railway": "npx prisma db push && node src/server.js",
+    "start": "npx prisma db push && node src/server.js",
+    "start:server": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
@@ -35,5 +35,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }
