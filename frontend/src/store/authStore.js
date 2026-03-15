@@ -14,11 +14,15 @@ export const useAuthStore = create(
         set({ isLoading: true, error: null })
         try {
           const response = await authAPI.login(email, password)
-          const { user, tokens } = response.data.data
-          
+          const data = response.data?.data
+          if (!data || !data.user || !data.tokens) {
+            const msg = response.data?.message || 'Risposta del server non valida. Riprova.'
+            set({ error: msg, isLoading: false })
+            return { success: false, error: msg }
+          }
+          const { user, tokens } = data
           localStorage.setItem('token', tokens.accessToken)
           localStorage.setItem('refreshToken', tokens.refreshToken)
-          
           set({ user, isAuthenticated: true, isLoading: false })
           return { success: true }
         } catch (error) {
