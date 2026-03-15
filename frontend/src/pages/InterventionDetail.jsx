@@ -154,11 +154,32 @@ export default function InterventionDetail() {
         firmaClienteUrl: firmaClienteUrl || null
       })
       const reportGenerato = res.data?.reportGenerato
+      const reportPdfUrl = res.data?.data?.reportPdfUrl
       toast.success(res.data?.message || 'Intervento completato!')
       if (reportGenerato === false) {
         toast('Report PDF non generato. Un admin può generarlo da questa pagina con "Genera report".', { icon: '⚠️', duration: 5000 })
       }
       loadIntervention()
+      // Scarica il report PDF se generato
+      if (reportPdfUrl) {
+        try {
+          const url = `${API_BASE}${reportPdfUrl}`
+          const response = await fetch(url)
+          if (!response.ok) throw new Error('Download fallito')
+          const blob = await response.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = blobUrl
+          a.download = `report-intervento-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          URL.revokeObjectURL(blobUrl)
+        } catch (e) {
+          console.warn('Download report:', e)
+          toast('Report generato. Puoi scaricarlo dal link "Scarica report PDF" qui sopra.', { duration: 4000 })
+        }
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Errore completamento')
     } finally {

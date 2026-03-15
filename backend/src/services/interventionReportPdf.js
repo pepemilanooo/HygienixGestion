@@ -29,6 +29,7 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
     const tecnico = intervention.tecnico || {};
     const tipoIntervento = intervention.tipoIntervento || {};
     const prodotti = intervention.prodotti || [];
+    const foto = intervention.foto || [];
 
     const dataInizio = intervention.checkInTime || intervention.dataProgrammata;
     const dataFine = intervention.checkOutTime || intervention.dataEsecuzione || intervention.dataProgrammata;
@@ -105,6 +106,25 @@ function generateInterventionReportPdf(intervention, outputFilePath) {
       if (intervention.temperatura != null) doc.text(`Temperatura: ${intervention.temperatura}°C`, MARGIN, y);
       if (intervention.umidita != null) doc.text(`Umidità: ${intervention.umidita}%`, 220, y);
       y += LINE_H + 6;
+    }
+
+    // Foto intervento (riferimento)
+    if (foto.length > 0) {
+      doc.fontSize(10).fillColor('#000').text('Foto intervento', MARGIN, y);
+      y += LINE_H;
+      doc.fontSize(9).fillColor('#666');
+      foto.forEach((f, i) => {
+        const tipo = f.tipo || 'N/A';
+        const desc = f.descrizione ? ` - ${f.descrizione}` : '';
+        doc.text(`${i + 1}. Tipo: ${tipo}${desc}`, MARGIN, y);
+        y += LINE_H;
+        if (f.fotoUrl) {
+          const urlShort = String(f.fotoUrl).length > 70 ? String(f.fotoUrl).substring(0, 67) + '...' : f.fotoUrl;
+          doc.text(`   URL: ${urlShort}`, MARGIN, y);
+          y += LINE_H;
+        }
+      });
+      y += 6;
     }
 
     // Firme (riferimento)
