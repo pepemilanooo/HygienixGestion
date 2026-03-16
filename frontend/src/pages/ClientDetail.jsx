@@ -11,8 +11,8 @@ export default function ClientDetail() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({})
-  const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [deleteConfirmDouble, setDeleteConfirmDouble] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
 
   useEffect(() => {
     loadClient()
@@ -21,8 +21,27 @@ export default function ClientDetail() {
   const loadClient = async () => {
     try {
       const response = await clientsAPI.getById(id)
-      setClient(response.data.data)
-      setFormData(response.data.data)
+      const cli = response.data.data
+      setClient(cli)
+
+      // Inizializza SOLO i campi modificabili
+      setFormData({
+        ragioneSociale: cli.ragioneSociale || '',
+        tipo: cli.tipo || 'azienda',
+        piva: cli.piva || '',
+        codiceFiscale: cli.codiceFiscale || '',
+        email: cli.email || '',
+        telefono: cli.telefono || '',
+        indirizzo: cli.indirizzo || '',
+        citta: cli.citta || '',
+        cap: cli.cap || '',
+        provincia: cli.provincia || '',
+        note: cli.note || '',
+        consigliere: cli.consigliere || '',
+        telefonoConsigliere: cli.telefonoConsigliere || '',
+        attivo: cli.attivo,
+        contrattoUrl: cli.contrattoUrl || '',
+      })
     } catch (error) {
       toast.error('Errore caricamento cliente')
       navigate('/clients')
@@ -32,37 +51,69 @@ export default function ClientDetail() {
   }
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    const { name, value, type, checked } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }))
   }
 
   const handleSave = async () => {
+    if (!client) return
     try {
-      const response = await clientsAPI.update(id, formData)
+      const payload = {
+        ragioneSociale: formData.ragioneSociale?.trim() || client.ragioneSociale,
+        tipo: formData.tipo || client.tipo || 'azienda',
+        piva: formData.piva?.trim() || null,
+        codiceFiscale: formData.codiceFiscale?.trim() || null,
+        email: formData.email?.trim() || null,
+        telefono: formData.telefono?.trim() || null,
+        indirizzo: formData.indirizzo?.trim() || null,
+        citta: formData.citta?.trim() || null,
+        cap: formData.cap?.trim() || null,
+        provincia: formData.provincia?.trim() || null,
+        note: formData.note?.trim() || null,
+        consigliere: formData.consigliere?.trim() || null,
+        telefonoConsigliere: formData.telefonoConsigliere?.trim() || null,
+        attivo: formData.attivo,
+        contrattoUrl: formData.contrattoUrl || null,
+      }
+
+      const response = await clientsAPI.update(id, payload)
       setClient(response.data.data)
       setEditing(false)
       toast.success('Cliente aggiornato con successo')
     } catch (error) {
-      toast.error('Errore aggiornamento cliente')
+      toast.error(error.response?.data?.message || 'Errore aggiornamento cliente')
     }
   }
 
-  const handleDelete = async () => {
-    if (!deleteConfirmDouble) {
-      setDeleteConfirm(true)
+  const handleDeleteClick = () => {
+    if (!client) return
+    setDeleteConfirmName('')
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!client) return
+
+    if (deleteConfirmName.trim() !== client.ragioneSociale) {
+      toast('Per confermare, scrivi esattamente la ragione sociale del cliente.', { icon: '⚠️' })
       return
     }
-    
+
     try {
       await clientsAPI.delete(id)
       toast.success('Cliente eliminato con successo')
+      setDeleteConfirmOpen(false)
       navigate('/clients')
     } catch (error) {
-      toast.error('Errore eliminazione cliente')
+      toast.error(error.response?.data?.message || 'Errore eliminazione cliente')
     }
   }
 
   const downloadDocument = (url) => {
+    if (!url) return
     window.open(url, '_blank')
   }
 
@@ -100,7 +151,7 @@ export default function ClientDetail() {
                 <span>Modifica</span>
               </button>
               <button
-                onClick={() => setDeleteConfirm(true)}
+                onClick={handleDeleteClick}
                 className="btn-danger flex items-center space-x-2"
               >
                 <Trash2 className="h-5 w-5" />
@@ -235,7 +286,32 @@ export default function ClientDetail() {
             </div>
             <div className="flex space-x-2">
               <button onClick={handleSave} className="btn-primary">Salva</button>
-              <button onClick={() => { setEditing(false); setFormData(client) }} className="btn-secondary">Annulla</button>
+              <button
+                onClick={() => {
+                  setEditing(false)
+                  // ripristina valori dal client corrente
+                  setFormData({
+                    ragioneSociale: client.ragioneSociale || '',
+                    tipo: client.tipo || 'azienda',
+                    piva: client.piva || '',
+                    codiceFiscale: client.codiceFiscale || '',
+                    email: client.email || '',
+                    telefono: client.telefono || '',
+                    indirizzo: client.indirizzo || '',
+                    citta: client.citta || '',
+                    cap: client.cap || '',
+                    provincia: client.provincia || '',
+                    note: client.note || '',
+                    consigliere: client.consigliere || '',
+                    telefonoConsigliere: client.telefonoConsigliere || '',
+                    attivo: client.attivo,
+                    contrattoUrl: client.contrattoUrl || '',
+                  })
+                }}
+                className="btn-secondary"
+              >
+                Annulla
+              </button>
             </div>
           </div>
         ) : (
@@ -299,7 +375,9 @@ export default function ClientDetail() {
               <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                 <div>
                   <p className="font-semibold">{doc.nome}</p>
-                  <p className="text-sm text-gray-500">{new Date(doc.dataDocumento || doc.createdAt).toLocaleDateString('it-IT')}</p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(doc.dataDocumento || doc.createdAt).toLocaleDateString('it-IT')}
+                  </p>
                 </div>
                 <button
                   onClick={() => downloadDocument(doc.url)}
@@ -314,28 +392,52 @@ export default function ClientDetail() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
+      {/* Modal doppia conferma cancellazione */}
+      {deleteConfirmOpen && client && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm">
-            <h3 className="text-lg font-bold mb-4">Elimina Cliente</h3>
-            {!deleteConfirmDouble ? (
-              <>
-                <p className="text-gray-600 mb-6">Sei sicuro di voler eliminare questo cliente? Questa azione non può essere annullata.</p>
-                <div className="flex space-x-2">
-                  <button onClick={() => setDeleteConfirm(false)} className="btn-secondary flex-1">Annulla</button>
-                  <button onClick={handleDelete} className="btn-danger flex-1">Elimina</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-gray-600 mb-6">Conferma di nuovo per eliminare definitivamente il cliente.</p>
-                <div className="flex space-x-2">
-                  <button onClick={() => { setDeleteConfirm(false); setDeleteConfirmDouble(false) }} className="btn-secondary flex-1">Annulla</button>
-                  <button onClick={handleDelete} className="btn-danger flex-1">Elimina Definitivamente</button>
-                </div>
-              </>
-            )}
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Elimina Cliente</h3>
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-gray-700 mb-3">
+              Sei sicuro di voler eliminare questo cliente? Questa azione
+              <strong> non può essere annullata</strong>.
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              Per confermare, digita esattamente la ragione sociale:
+            </p>
+            <p className="text-sm font-semibold mb-2 border-l-4 border-red-400 pl-2">
+              {client.ragioneSociale}
+            </p>
+            <input
+              type="text"
+              className="input w-full mb-4"
+              placeholder="Scrivi qui la ragione sociale per confermare"
+              value={deleteConfirmName}
+              onChange={(e) => setDeleteConfirmName(e.target.value)}
+            />
+
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="btn-secondary flex-1"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="btn-danger flex-1"
+              >
+                Elimina definitivamente
+              </button>
+            </div>
           </div>
         </div>
       )}
