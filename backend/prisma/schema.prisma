@@ -210,6 +210,9 @@ model Intervention {
   firmaClienteUrl   String?   @map("firma_cliente_url")
   reportPdfUrl      String?   @map("report_pdf_url")
   
+  // Dati sopraluogo (JSON)
+  sopralluogoData   Json?     @map("sopralluogo_data")
+  
   // Ricorrenza
   ricorrenza        String?   // nessuna, settimanale, mensile, trimestrale, annuale
   interventoPadreId String?   @map("intervento_padre_id")

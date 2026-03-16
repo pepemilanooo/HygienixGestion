@@ -686,3 +686,97 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Errore eliminazione' });
   }
 });
+
+// ============================================
+// SOPRALLUOGHI - API per formulari
+// ============================================
+
+// POST /api/interventions/:id/sopralluogo - Salva dati formulario sopraluogo (tecnico)
+router.post('/:id/sopralluogo', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tipoSopralluogo, dati } = req.body;
+
+    if (!tipoSopralluogo || !['zanzare', 'ratti', 'blatte'].includes(tipoSopralluogo)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Tipo sopralluogo non valido. Usa: zanzare, ratti, blatte' 
+      });
+    }
+
+    if (!dati || typeof dati !== 'object') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Dati sopralluogo obbligatori' 
+      });
+    }
+
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+
+    // Salva i dati del sopraluogo
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data: {
+        sopralluogoData: {
+          tipo: tipoSopralluogo,
+          ...dati,
+          completatoAt: new Date().toISOString()
+        }
+      },
+      include: {
+        client: { select: { ragioneSociale: true } },
+        location: { select: { nomeSede: true } },
+        tipoIntervento: { select: { nome: true } }
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Sopralluogo completato e salvato',
+      data: updated
+    });
+  } catch (error) {
+    console.error('Save sopralluogo error:', error);
+    res.status(500).json({ success: false, message: 'Errore salvataggio sopralluogo' });
+  }
+});
+
+// GET /api/interventions/:id/sopralluogo - Recupera dati formulario (tecnico/admin)
+router.get('/:id/sopralluogo', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const intervention = await prisma.intervention.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        sopralluogoData: true,
+        stato: true,
+        client: { select: { ragioneSociale: true } },
+        location: { select: { nomeSede: true } },
+        tecnico: { select: { nome: true, cognome: true } }
+      }
+    });
+
+    if (!intervention) {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+
+    // Check permission
+    if (req.user.ruolo === 'tecnico' && intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Non autorizzato' });
+    }
+
+    if (!intervention.sopralluogoData) {
+      return res.status(404).json({ success: false, message: 'Sopralluogo non ancora completato' });
+    }
+
+    res.json({ success: true, data: intervention.sopralluogoData });
+  } catch (error) {
+    console.error('Get sopralluogo error:', error);
+    res.status(500).json({ success: false, message: 'Errore recupero dati' });
+  }
+});
