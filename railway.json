@@ -18,7 +18,7 @@
             "builder": "NIXPACKS"
           },
           "deploy": {
-            "startCommand": "export DATABASE_URL='file:/data/dev_v2.db' && npx prisma db push --accept-data-loss && npm start",
+            "startCommand": "bash fix-db.sh",
             "healthcheckPath": "/api/health"
           }
         },
