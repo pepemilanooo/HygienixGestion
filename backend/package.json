@@ -4,10 +4,9 @@
   "description": "Backend Hygienix - Pest Control Management",
   "main": "src/server.js",
   "scripts": {
-    "start": "bash start-railway.sh",
-    "start:direct": "node src/server.js",
+    "start": "npx prisma db push --accept-data-loss && node src/server.js",
     "start:migrate": "npx prisma migrate deploy && node src/server.js",
-    "start:push": "npx prisma db push && node src/server.js",
+    "start:direct": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
