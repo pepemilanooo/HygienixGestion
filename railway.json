@@ -18,7 +18,7 @@
             "builder": "NIXPACKS"
           },
           "deploy": {
-            "startCommand": "npx prisma db push --accept-data-loss && npm start",
+            "startCommand": "npx prisma migrate resolve --applied 20260316164455_add_sopralluogo_data || true && npx prisma db push --accept-data-loss && npm start",
             "healthcheckPath": "/api/health"
           }
         },
