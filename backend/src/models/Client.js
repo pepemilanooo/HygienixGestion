@@ -88,19 +88,39 @@ class Client {
   }
 
   static async update(id, updateData) {
-    const allowedFields = [
-      'ragione_sociale', 'tipo', 'piva', 'codice_fiscale', 'email',
-      'telefono', 'indirizzo', 'citta', 'cap', 'provincia', 'note', 'attivo'
-    ];
+    // Mappatura da camelCase (frontend) a snake_case (database)
+    const fieldMapping = {
+      'ragioneSociale': 'ragione_sociale',
+      'ragione_sociale': 'ragione_sociale',
+      'tipo': 'tipo',
+      'piva': 'piva',
+      'codiceFiscale': 'codice_fiscale',
+      'codice_fiscale': 'codice_fiscale',
+      'email': 'email',
+      'telefono': 'telefono',
+      'indirizzo': 'indirizzo',
+      'citta': 'citta',
+      'cap': 'cap',
+      'provincia': 'provincia',
+      'note': 'note',
+      'attivo': 'attivo',
+      'consigliere': 'consigliere',
+      'telefonoConsigliere': 'telefono_consigliere',
+      'telefono_consigliere': 'telefono_consigliere'
+    };
+
+    const allowedFields = Object.values(fieldMapping);
     
     const updates = [];
     const values = [];
     let paramIndex = 1;
 
     for (const [key, value] of Object.entries(updateData)) {
-      if (allowedFields.includes(key)) {
-        updates.push(`${key} = $${paramIndex}`);
-        values.push(key === 'email' ? value?.toLowerCase() : value);
+      // Converte camelCase a snake_case usando la mappatura
+      const dbField = fieldMapping[key];
+      if (dbField) {
+        updates.push(`${dbField} = ${paramIndex}`);
+        values.push(dbField === 'email' ? value?.toLowerCase() : value);
         paramIndex++;
       }
     }

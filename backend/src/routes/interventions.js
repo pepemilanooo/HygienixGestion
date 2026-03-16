@@ -519,3 +519,47 @@ router.post('/:id/firma-cliente', authMiddleware, requireTecnico, async (req, re
 });
 
 module.exports = router;
+
+// GET /api/interventions/:id/download-report - Scarica il PDF del report
+router.get('/:id/download-report', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const intervention = await prisma.intervention.findUnique({
+      where: { id },
+      include: { client: { select: { ragioneSociale: true } } }
+    });
+    
+    if (!intervention) {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+    
+    // Verifica permessi
+    if (req.user.ruolo === 'tecnico' && intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+    
+    if (!intervention.reportPdfUrl) {
+      return res.status(404).json({ success: false, message: 'Report non ancora generato per questo intervento' });
+    }
+    
+    const uploadPath = process.env.UPLOAD_PATH || './uploads';
+    const uploadRootDir = path.isAbsolute(uploadPath) ? uploadPath : path.join(__dirname, '..', '..', uploadPath);
+    const filePath = path.join(uploadRootDir, intervention.reportPdfUrl.replace('/uploads/', ''));
+    
+    if (!require('fs').existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File PDF non trovato sul server' });
+    }
+    
+    const clientName = (intervention.client?.ragioneSociale || 'cliente').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `report_intervento_${clientName}_${id}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.sendFile(filePath);
+    
+  } catch (error) {
+    console.error('Download report error:', error);
+    res.status(500).json({ success: false, message: 'Errore nel download del report' });
+  }
+});

@@ -1,6 +1,8 @@
 const Intervention = require('../models/Intervention');
 const Location = require('../models/Location');
 const { query } = require('../config/database');
+const { generateInterventionReport, saveReportToClientFile } = require('../services/interventionReportPdf');
+const path = require('path');
 
 const interventionController = {
   getAll: async (req, res, next) => {
@@ -352,6 +354,127 @@ const interventionController = {
           prodotti_usati: productUsage
         }
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Genera e restituisce il report PDF dell'intervento
+   * POST /api/interventions/:id/generate-report
+   */
+  generateAndDownloadReport: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { saveToClientFile = true } = req.body;
+
+      // Recupera l'intervento completo con tutti i dettagli
+      const intervention = await Intervention.findById(id);
+      
+      if (!intervention) {
+        return res.status(404).json({
+          success: false,
+          message: 'Intervento non trovato'
+        });
+      }
+
+      // Verifica che l'intervento sia completato
+      if (intervention.stato !== 'completato') {
+        return res.status(400).json({
+          success: false,
+          message: 'L\'intervento deve essere completato prima di generare il report'
+        });
+      }
+
+      // Recupera foto e prodotti
+      const photos = await Intervention.getPhotos(id);
+      const products = await Intervention.getProductUsage(id);
+
+      // Prepara i dati completi per il PDF
+      const interventionData = {
+        ...intervention,
+        foto: photos,
+        prodotti: products
+      };
+
+      // Directory uploads
+      const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
+
+      // Genera il PDF
+      const reportResult = await generateInterventionReport(interventionData, uploadDir);
+
+      // Salva il riferimento nel database (report_pdf_url)
+      await Intervention.update(id, { report_pdf_url: reportResult.filePath });
+
+      // Salva anche nella ficha del cliente come documento (opzionale)
+      if (saveToClientFile) {
+        try {
+          await saveReportToClientFile(intervention.client_id, reportResult.filePath, id);
+        } catch (saveError) {
+          console.error('Errore salvataggio nella ficha cliente:', saveError);
+          // Non bloccare il download se il salvataggio fallisce
+        }
+      }
+
+      // Restituisci il file PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="report_intervento_${id}.pdf"`);
+      res.sendFile(reportResult.fullPath, (err) => {
+        if (err) {
+          console.error('Errore invio file:', err);
+          // Se l'invio fallisce, almeno restituisci il percorso
+          if (!res.headersSent) {
+            res.json({
+              success: true,
+              message: 'Report generato ma errore nel download',
+              data: {
+                reportUrl: reportResult.filePath,
+                fileName: reportResult.fileName
+              }
+            });
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Errore generazione report:', error);
+      next(error);
+    }
+  },
+
+  /**
+   * Ottiene l'URL del report PDF generato
+   * GET /api/interventions/:id/report
+   */
+  getReportUrl: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      const intervention = await Intervention.findById(id);
+      
+      if (!intervention) {
+        return res.status(404).json({
+          success: false,
+          message: 'Intervento non trovato'
+        });
+      }
+
+      // Verifica se esiste un report
+      if (!intervention.report_pdf_url) {
+        return res.status(404).json({
+          success: false,
+          message: 'Report non ancora generato per questo intervento'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          reportUrl: intervention.report_pdf_url,
+          generatedAt: intervention.data_aggiornamento || intervention.updated_at
+        }
+      });
+
     } catch (error) {
       next(error);
     }
