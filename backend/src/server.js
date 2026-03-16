@@ -3,7 +3,25 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { execSync } = require('child_process');
 require('dotenv').config();
+
+// Auto-run database migration on startup (for Railway deploy)
+const runMigration = () => {
+  try {
+    console.log('Running database migration...');
+    execSync('npx prisma migrate deploy', { 
+      stdio: 'inherit',
+      cwd: path.join(__dirname, '..')
+    });
+    console.log('Database migration completed successfully');
+  } catch (error) {
+    console.error('Migration failed:', error.message);
+    // Continue anyway - migration might already be applied
+  }
+};
+
+runMigration();
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
