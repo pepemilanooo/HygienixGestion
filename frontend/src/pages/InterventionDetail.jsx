@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { interventionsAPI, uploadAPI, prodottiAPI } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import SignaturePad from '../components/SignaturePad'
-import { MapPin, Calendar, User, Clock, CheckCircle, ArrowLeft, PenTool, Package, Phone, Lock, FileText } from 'lucide-react'
+import { MapPin, Calendar, User, Clock, CheckCircle, ArrowLeft, PenTool, Package, Phone, Lock, FileText, ClipboardList } from 'lucide-react'
+import { SopralluogoForm } from '../components/sopralluoghi'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -30,6 +31,8 @@ export default function InterventionDetail() {
   const [addQuantita, setAddQuantita] = useState('')
   const [rigenerandoReport, setRigenerandoReport] = useState(false)
   const [reportDaScaricare, setReportDaScaricare] = useState(null)
+  const [showSopralluogo, setShowSopralluogo] = useState(false)
+  const [tipoSopralluogo, setTipoSopralluogo] = useState('')
 
   useEffect(() => {
     loadIntervention()
@@ -565,6 +568,80 @@ export default function InterventionDetail() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Sopralluogo Section */}
+      {isAssignedToMe && intervention?.stato !== 'completato' && (
+        <div className="card">
+          {!showSopralluogo ? (
+            <>
+              <div className="flex items-center gap-2 mb-4">
+                <ClipboardList className="h-5 w-5 text-blue-600" />
+                <h2 className="text-lg font-semibold">Sopralluogo</h2>
+              </div>
+              
+              {intervention?.sopralluogoData ? (
+                <div className="mb-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-green-700 font-medium">
+                    ✓ Sopralluogo completato: {intervention.sopralluogoData.tipoSopralluogo?.toUpperCase()}
+                  </p>
+                  <button 
+                    onClick={() => {
+                      setTipoSopralluogo(intervention.sopralluogoData.tipoSopralluogo)
+                      setShowSopralluogo(true)
+                    }}
+                    className="mt-2 text-sm text-blue-600 hover:underline"
+                  >
+                    Modifica sopralluogo
+                  </button>
+                </div>
+              ) : (
+                <p className="text-gray-600 mb-4">Seleziona il tipo di sopralluogo da effettuare:</p>
+              )}
+
+              {!intervention?.sopralluogoData && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { value: 'zanzare', label: 'Zanzare', color: 'blue', bg: 'bg-blue-50', border: 'border-blue-200', hover: 'hover:border-blue-400' },
+                    { value: 'ratti', label: 'Ratti', color: 'green', bg: 'bg-green-50', border: 'border-green-200', hover: 'hover:border-green-400' },
+                    { value: 'blatte', label: 'Blatte', color: 'yellow', bg: 'bg-yellow-50', border: 'border-yellow-200', hover: 'hover:border-yellow-400' }
+                  ].map(tipo => (
+                    <button
+                      key={tipo.value}
+                      onClick={() => {
+                        setTipoSopralluogo(tipo.value)
+                        setShowSopralluogo(true)
+                      }}
+                      className={`p-4 rounded-lg border-2 ${tipo.border} ${tipo.bg} ${tipo.hover} transition-colors text-center`}
+                    >
+                      <span className={`font-semibold text-${tipo.color}-700`}>{tipo.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Sopralluogo - {tipoSopralluogo.toUpperCase()}</h2>
+                <button 
+                  onClick={() => setShowSopralluogo(false)}
+                  className="text-gray-500 hover:text-gray-700 p-2"
+                >
+                  ✕ Chiudi
+                </button>
+              </div>
+              <SopralluogoForm 
+                interventionId={id}
+                tipoSopralluogo={tipoSopralluogo}
+                onComplete={() => {
+                  setShowSopralluogo(false)
+                  loadIntervention()
+                }}
+              />
+            </>
+          )}
         </div>
       )}
     </div>
