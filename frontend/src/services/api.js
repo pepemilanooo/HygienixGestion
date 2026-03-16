@@ -106,6 +106,8 @@ export const interventionsAPI = {
   rigeneraReport: (id) => apiClient.post(`/interventions/${id}/rigenera-report`),
   addProdotto: (id, data) => apiClient.post(`/interventions/${id}/prodotti`, data),
   removeProdotto: (id, rigaId) => apiClient.delete(`/interventions/${id}/prodotti/${rigaId}`),
+  saveSopralluogo: (id, data) => apiClient.post(`/interventions/${id}/sopralluogo`, data),
+  getSopralluogo: (id) => apiClient.get(`/interventions/${id}/sopralluogo`),
 }
 
 // Dashboard API
