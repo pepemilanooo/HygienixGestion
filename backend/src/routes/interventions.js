@@ -563,3 +563,126 @@ router.get('/:id/download-report', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Errore nel download del report' });
   }
 });
+
+// ============================================
+// NUOVE API AGGIUNTE
+// ============================================
+
+// POST /api/interventions/:id/foto - Aggiungi foto all'intervento (tecnico)
+router.post('/:id/foto', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fotoUrl, tipo = 'durante', descrizione } = req.body;
+
+    if (!fotoUrl || !fotoUrl.trim()) {
+      return res.status(400).json({ success: false, message: 'URL foto obbligatorio' });
+    }
+
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+
+    if (intervention.stato === 'completato') {
+      return res.status(400).json({ success: false, message: 'Intervento già chiuso' });
+    }
+
+    const foto = await prisma.fotoIntervento.create({
+      data: {
+        interventionId: id,
+        fotoUrl: fotoUrl.trim(),
+        tipo,
+        descrizione: descrizione || null
+      }
+    });
+
+    res.status(201).json({ success: true, message: 'Foto aggiunta', data: foto });
+  } catch (error) {
+    console.error('Add foto error:', error);
+    res.status(500).json({ success: false, message: 'Errore aggiunta foto' });
+  }
+});
+
+// DELETE /api/interventions/:id/foto/:fotoId - Elimina foto (tecnico)
+router.delete('/:id/foto/:fotoId', authMiddleware, requireTecnico, async (req, res) => {
+  try {
+    const { id, fotoId } = req.params;
+
+    const intervention = await prisma.intervention.findUnique({ where: { id } });
+    if (!intervention || intervention.tecnicoId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Accesso negato' });
+    }
+
+    if (intervention.stato === 'completato') {
+      return res.status(400).json({ success: false, message: 'Intervento già chiuso' });
+    }
+
+    await prisma.fotoIntervento.deleteMany({
+      where: { id: fotoId, interventionId: id }
+    });
+
+    res.json({ success: true, message: 'Foto eliminata' });
+  } catch (error) {
+    console.error('Delete foto error:', error);
+    res.status(500).json({ success: false, message: 'Errore eliminazione foto' });
+  }
+});
+
+// PUT /api/interventions/:id - Modifica intervento (admin)
+router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      dataProgrammata, 
+      tecnicoId, 
+      tipoInterventoId, 
+      noteInterne,
+      stato 
+    } = req.body;
+
+    const data = {};
+    if (dataProgrammata) data.dataProgrammata = new Date(dataProgrammata);
+    if (tecnicoId) data.tecnicoId = tecnicoId;
+    if (tipoInterventoId) data.tipoInterventoId = tipoInterventoId;
+    if (noteInterne !== undefined) data.noteInterne = noteInterne;
+    if (stato && ['pianificato', 'in_corso', 'completato', 'annullato'].includes(stato)) {
+      data.stato = stato;
+    }
+
+    const updated = await prisma.intervention.update({
+      where: { id },
+      data,
+      include: {
+        client: { select: { ragioneSociale: true } },
+        location: { select: { nomeSede: true } },
+        tecnico: { select: { nome: true, cognome: true } },
+        tipoIntervento: { select: { nome: true } }
+      }
+    });
+
+    res.json({ success: true, message: 'Intervento aggiornato', data: updated });
+  } catch (error) {
+    console.error('Update intervention error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+    res.status(500).json({ success: false, message: 'Errore aggiornamento' });
+  }
+});
+
+// DELETE /api/interventions/:id - Elimina intervento (admin)
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.intervention.delete({ where: { id } });
+
+    res.json({ success: true, message: 'Intervento eliminato' });
+  } catch (error) {
+    console.error('Delete intervention error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'Intervento non trovato' });
+    }
+    res.status(500).json({ success: false, message: 'Errore eliminazione' });
+  }
+});
