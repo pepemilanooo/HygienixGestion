@@ -211,7 +211,7 @@ model Intervention {
   reportPdfUrl      String?   @map("report_pdf_url")
   
   // Dati sopraluogo (JSON)
-  sopralluogoData   Json?     @map("sopralluogo_data")
+  sopralluogoData   String?     @map("sopralluogo_data")
   
   // Ricorrenza
   ricorrenza        String?   // nessuna, settimanale, mensile, trimestrale, annuale

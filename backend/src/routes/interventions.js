@@ -95,6 +95,15 @@ router.get('/:id', authMiddleware, async (req, res) => {
       }
     });
 
+    // Parse sopralluogoData if it's a string (SQLite compatibility)
+    if (intervention && intervention.sopralluogoData && typeof intervention.sopralluogoData === 'string') {
+      try {
+        intervention.sopralluogoData = JSON.parse(intervention.sopralluogoData);
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
+
     if (!intervention) {
       return res.status(404).json({ success: false, message: 'Intervento non trovato' });
     }
@@ -164,6 +173,15 @@ router.post('/:id/check-in', authMiddleware, requireTecnico, async (req, res) =>
       where: { id },
       include: { location: true }
     });
+
+    // Parse sopralluogoData if it's a string (SQLite compatibility)
+    if (intervention && intervention.sopralluogoData && typeof intervention.sopralluogoData === 'string') {
+      try {
+        intervention.sopralluogoData = JSON.parse(intervention.sopralluogoData);
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
 
     if (!intervention) {
       return res.status(404).json({ success: false, message: 'Intervento non trovato' });
@@ -530,6 +548,15 @@ router.get('/:id/download-report', authMiddleware, async (req, res) => {
       include: { client: { select: { ragioneSociale: true } } }
     });
     
+    // Parse sopralluogoData if it's a string (SQLite compatibility)
+    if (intervention && intervention.sopralluogoData && typeof intervention.sopralluogoData === 'string') {
+      try {
+        intervention.sopralluogoData = JSON.parse(intervention.sopralluogoData);
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
+
     if (!intervention) {
       return res.status(404).json({ success: false, message: 'Intervento non trovato' });
     }
@@ -716,15 +743,17 @@ router.post('/:id/sopralluogo', authMiddleware, requireTecnico, async (req, res)
       return res.status(403).json({ success: false, message: 'Accesso negato' });
     }
 
-    // Salva i dati del sopraluogo
+    // Salva i dati del sopraluogo (come stringa JSON per SQLite)
+    const sopralluogoPayload = {
+      tipoSopralluogo,
+      ...dati,
+      completatoAt: new Date().toISOString()
+    };
+    
     const updated = await prisma.intervention.update({
       where: { id },
       data: {
-        sopralluogoData: {
-          tipo: tipoSopralluogo,
-          ...dati,
-          completatoAt: new Date().toISOString()
-        }
+        sopralluogoData: JSON.stringify(sopralluogoPayload)
       },
       include: {
         client: { select: { ragioneSociale: true } },
@@ -761,6 +790,15 @@ router.get('/:id/sopralluogo', authMiddleware, async (req, res) => {
       }
     });
 
+    // Parse sopralluogoData if it's a string (SQLite compatibility)
+    if (intervention && intervention.sopralluogoData && typeof intervention.sopralluogoData === 'string') {
+      try {
+        intervention.sopralluogoData = JSON.parse(intervention.sopralluogoData);
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
+
     if (!intervention) {
       return res.status(404).json({ success: false, message: 'Intervento non trovato' });
     }
@@ -774,7 +812,17 @@ router.get('/:id/sopralluogo', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sopralluogo non ancora completato' });
     }
 
-    res.json({ success: true, data: intervention.sopralluogoData });
+    // Parse JSON string for SQLite compatibility
+    let parsedData;
+    try {
+      parsedData = typeof intervention.sopralluogoData === 'string' 
+        ? JSON.parse(intervention.sopralluogoData) 
+        : intervention.sopralluogoData;
+    } catch (e) {
+      parsedData = intervention.sopralluogoData;
+    }
+
+    res.json({ success: true, data: parsedData });
   } catch (error) {
     console.error('Get sopralluogo error:', error);
     res.status(500).json({ success: false, message: 'Errore recupero dati' });
