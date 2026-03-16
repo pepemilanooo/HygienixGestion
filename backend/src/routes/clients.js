@@ -217,3 +217,22 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+// DELETE /api/clients/:id (hard delete)
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Hard delete - elimina completamente il cliente
+    await prisma.client.delete({
+      where: { id }
+    });
+
+    res.json({ success: true, message: 'Cliente eliminato definitivamente' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'Cliente non trovato' });
+    }
+    console.error('Delete client error:', error);
+    res.status(500).json({ success: false, message: 'Errore nell\'eliminazione' });
+  }
+});
