@@ -5,6 +5,15 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
+// Set default DATABASE_URL for Railway if not defined
+if (!process.env.DATABASE_URL) {
+  // Use Railway's persistent volume path or local fallback
+  process.env.DATABASE_URL = process.env.RAILWAY_ENVIRONMENT 
+    ? 'file:/data/dev.db'
+    : 'file:./data/dev.db';
+  console.log('DATABASE_URL not set, using default:', process.env.DATABASE_URL);
+}
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
