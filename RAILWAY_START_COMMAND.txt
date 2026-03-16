@@ -1,0 +1,9 @@
+# Start Command per Railway (Settings → Start Command)
+
+npx prisma migrate deploy && node src/server.js
+
+# Alternativa con db push (più veloce ma meno sicura):
+# npx prisma db push && node src/server.js
+
+# Con seed iniziale (se vuoi dati di esempio):
+# npx prisma migrate deploy && npx prisma db seed && node src/server.js
