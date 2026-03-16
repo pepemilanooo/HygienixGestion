@@ -5,7 +5,7 @@ const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// GET /api/clients
+// GET /api/clients - Lista clienti
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { search, active, page = 1, limit = 50 } = req.query;
@@ -49,7 +49,7 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/clients/:id
+// GET /api/clients/:id - Dettaglio cliente
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -76,14 +76,78 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/clients/:id
+// POST /api/clients - Crea nuovo cliente (admin)
+router.post('/', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const {
+      ragioneSociale,
+      tipo = 'azienda',
+      piva,
+      codiceFiscale,
+      email,
+      telefono,
+      indirizzo,
+      citta,
+      cap,
+      provincia,
+      note,
+      consigliere,
+      telefonoConsigliere,
+    } = req.body;
+
+    // Validazione campi obbligatori
+    if (!ragioneSociale || !ragioneSociale.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Ragione sociale è obbligatoria' 
+      });
+    }
+
+    const data = {
+      ragioneSociale: ragioneSociale.trim(),
+      tipo: tipo || 'azienda',
+      piva: piva?.trim() || null,
+      codiceFiscale: codiceFiscale?.trim() || null,
+      email: email?.trim() || null,
+      telefono: telefono?.trim() || null,
+      indirizzo: indirizzo?.trim() || null,
+      citta: citta?.trim() || null,
+      cap: cap?.trim() || null,
+      provincia: provincia?.trim() || null,
+      note: note?.trim() || null,
+      consigliere: consigliere?.trim() || null,
+      telefonoConsigliere: telefonoConsigliere?.trim() || null,
+      attivo: true,
+    };
+
+    const client = await prisma.client.create({ data });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Cliente creato con successo', 
+      data: client 
+    });
+  } catch (error) {
+    console.error('Create client error:', error);
+    
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Un cliente con questi dati (es. email o P.IVA) esiste già' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Errore nella creazione del cliente: ' + (error.message || 'Errore sconosciuto')
+    });
+  }
+});
+
+// PUT /api/clients/:id - Aggiorna cliente (admin)
 router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Log per debug
-    console.log('Update client - ID:', id);
-    console.log('Update client - Body:', JSON.stringify(req.body, null, 2));
     
     const {
       ragioneSociale,
@@ -100,12 +164,10 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       consigliere,
       telefonoConsigliere,
       attivo,
-      contrattoUrl,
     } = req.body;
 
     const data = {};
 
-    // Solo campi effettivamente inviati
     if (ragioneSociale !== undefined) {
       if (typeof ragioneSociale === 'string' && ragioneSociale.trim()) {
         data.ragioneSociale = ragioneSociale.trim();
@@ -152,17 +214,6 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
     if (attivo !== undefined) {
       if (typeof attivo === 'boolean') data.attivo = attivo;
     }
-    if (contrattoUrl !== undefined) {
-      data.contrattoUrl = typeof contrattoUrl === 'string' ? (contrattoUrl.trim() || null) : null;
-    }
-
-    console.log('Update client - Data to update:', JSON.stringify(data, null, 2));
-
-    // Verifica che il cliente esista prima di aggiornare
-    const existingClient = await prisma.client.findUnique({ where: { id } });
-    if (!existingClient) {
-      return res.status(404).json({ success: false, message: 'Cliente non trovato' });
-    }
 
     const client = await prisma.client.update({
       where: { id },
@@ -173,7 +224,6 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Update client error:', error);
     
-    // Errori specifici di Prisma
     if (error.code === 'P2002') {
       return res.status(400).json({ 
         success: false, 
@@ -187,28 +237,28 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       });
     }
     
-    // Errore generico con dettagli
     res.status(500).json({ 
       success: false, 
-      message: 'Errore nell\'aggiornamento: ' + (error.message || 'Errore sconosciuto'),
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Errore nell\'aggiornamento: ' + (error.message || 'Errore sconosciuto')
     });
   }
 });
 
-// DELETE /api/clients/:id
+// DELETE /api/clients/:id - Elimina cliente (admin)
 router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     
     await prisma.client.delete({ where: { id } });
     
-    res.json({ success: true, message: 'Cliente eliminato' });
+    res.json({ success: true, message: 'Cliente eliminato con successo' });
   } catch (error) {
     console.error('Delete client error:', error);
+    
     if (error.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'Cliente non trovato' });
     }
+    
     res.status(500).json({ success: false, message: 'Errore nell\'eliminazione' });
   }
 });
