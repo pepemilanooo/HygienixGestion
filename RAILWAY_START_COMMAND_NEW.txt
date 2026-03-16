@@ -1,0 +1,12 @@
+# NUOVO Start Command per Railway (copia e incolla in Settings)
+
+bash start-railway.sh
+
+# Questo script:
+# 1. Usa prisma db push --accept-data-loss (gestisce migration fallite)
+# 2. Se fallisce, risolve la migration e riprova
+# 3. Avvia il server
+
+# NON usare più questo:
+# npx prisma migrate deploy && node src/server.js
+# Perché dà errore P3009 (migration fallita)
