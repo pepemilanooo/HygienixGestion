@@ -29,6 +29,7 @@ export default function InterventionDetail() {
   const [addProdottoId, setAddProdottoId] = useState('')
   const [addQuantita, setAddQuantita] = useState('')
   const [rigenerandoReport, setRigenerandoReport] = useState(false)
+  const [reportDaScaricare, setReportDaScaricare] = useState(null)
 
   useEffect(() => {
     loadIntervention()
@@ -53,6 +54,29 @@ export default function InterventionDetail() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const scaricaReportPdf = (urlPath) => {
+    const url = `${API_BASE}${urlPath}`
+    fetch(url, { mode: 'cors' })
+      .then((r) => {
+        if (!r.ok) throw new Error('Download fallito')
+        return r.blob()
+      })
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = `report-intervento-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(blobUrl)
+      })
+      .catch(() => {
+        window.open(url, '_blank')
+        toast('Apertura in nuova scheda. Puoi salvare il PDF da lì.', { duration: 4000 })
+      })
   }
 
   const handleCheckIn = async () => {
@@ -154,33 +178,20 @@ export default function InterventionDetail() {
         firmaClienteUrl: firmaClienteUrl || null
       })
       const reportGenerato = res.data?.reportGenerato
-      const reportPdfUrl = res.data?.data?.reportPdfUrl
+      const reportPdfUrl = res.data?.reportPdfUrl ?? res.data?.data?.reportPdfUrl ?? null
       const msg = res.data?.message || 'Intervento completato!'
       toast.success(msg)
       if (reportGenerato === false) {
         toast(msg.includes('Report non generato') ? msg : 'Report PDF non generato. Un admin può generarlo da questa pagina con "Genera report".', { icon: '⚠️', duration: 6000 })
       }
       loadIntervention()
-      // Chiedi se vuole scaricare il report (solo se generato)
-      if (reportPdfUrl && window.confirm('Report PDF generato. Vuoi scaricarlo ora?')) {
-        try {
-          const url = `${API_BASE}${reportPdfUrl}`
-          const response = await fetch(url)
-          if (!response.ok) throw new Error('Download fallito')
-          const blob = await response.blob()
-          const blobUrl = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = blobUrl
-          a.download = `report-intervento-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`
-          document.body.appendChild(a)
-          a.click()
-          a.remove()
-          URL.revokeObjectURL(blobUrl)
-        } catch (e) {
-          console.warn('Download report:', e)
-          window.open(`${API_BASE}${reportPdfUrl}`, '_blank')
-          toast('Apertura in nuova scheda. Se non si scarica, usa il link "Scarica report PDF" sopra.', { duration: 4000 })
-        }
+      if (reportPdfUrl) {
+        setReportDaScaricare(reportPdfUrl)
+        setTimeout(() => {
+          if (window.confirm('Report PDF generato. Vuoi scaricarlo ora?')) {
+            scaricaReportPdf(reportPdfUrl)
+          }
+        }, 400)
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Errore completamento')
@@ -214,6 +225,40 @@ export default function InterventionDetail() {
       >
         <ArrowLeft className="h-5 w-5 mr-1" /> Indietro
       </button>
+
+      {reportDaScaricare && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between gap-4">
+          <p className="text-green-800 font-medium flex items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0" />
+            Report PDF generato. Scaricalo qui sotto.
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => { scaricaReportPdf(reportDaScaricare); setReportDaScaricare(null) }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+            >
+              Scarica report
+            </button>
+            <a
+              href={`${API_BASE}${reportDaScaricare}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-white border border-green-300 text-green-800 rounded-lg font-medium hover:bg-green-100"
+            >
+              Apri in nuova scheda
+            </a>
+            <button
+              type="button"
+              onClick={() => setReportDaScaricare(null)}
+              className="p-2 text-green-700 hover:bg-green-100 rounded"
+              title="Chiudi"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="flex items-start justify-between">

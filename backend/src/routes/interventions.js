@@ -297,6 +297,7 @@ router.post('/:id/complete', authMiddleware, requireTecnico, async (req, res) =>
       success: true,
       message: msg,
       reportGenerato: !!reportPdfUrl,
+      reportPdfUrl: reportPdfUrl || undefined,
       data: updatedWithReport
     });
   } catch (error) {
