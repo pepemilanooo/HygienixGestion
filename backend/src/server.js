@@ -52,6 +52,8 @@ app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
     if (corsOrigins.some(o => origin === o)) return cb(null, true);
+    if (origin.endsWith('.vercel.app')) return cb(null, true);
+    if (origin.includes('vercel.app')) return cb(null, true);
     if (origin.endsWith('.up.railway.app') || origin.endsWith('.railway.app')) return cb(null, true);
     cb(null, false);
   },
